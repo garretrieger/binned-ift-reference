@@ -6,11 +6,22 @@
 
 #pragma once
 
+#define DEFOUTDIR "subset_tmp"
+
 class builder {
  public:
     builder(config &c) : conf(c) {}
     void process(const char *fname);
-    ~builder() { if (nominal_map) hb_map_destroy(nominal_map); }
+    void check_write();
+    void write();
+    ~builder() {
+        if (nominal_map)
+            hb_map_destroy(nominal_map);
+        if (all_codepoints)
+            hb_map_destroy(all_codepoints);
+        if (all_gids)
+            hb_map_destroy(all_gids);
+    }
  private:
     config &conf;
     blob inblob, outblob;
@@ -23,7 +34,7 @@ class builder {
 
     std::vector<chunk> chunks;
 
-    hb_map_t *nominal_map = NULL;
+    hb_map_t *nominal_map = NULL, *all_codepoints = NULL, *all_gids = NULL;
     std::unordered_multimap<uint32_t, uint32_t> nominal_revmap;
     set all_features;
     set tables;

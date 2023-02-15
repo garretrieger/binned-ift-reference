@@ -1,4 +1,5 @@
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -302,6 +303,7 @@ void builder::process(const char *fname) {
     while (all_features.next(feat)) {
         if (default_features.find(feat) != default_features.end())
             continue;
+        hb_set_set(t, all_features.s);
         hb_set_del(t, feat);
         plan = hb_subset_plan_create_or_fail(subface.f, input.i);
         map = hb_subset_plan_old_to_new_glyph_mapping(plan);
@@ -312,12 +314,13 @@ void builder::process(const char *fname) {
         hb_subset_plan_destroy(plan);
         scratch2.copy(gid_closure);
         scratch2.subtract(scratch1);
+        for (auto &i: feature_gids)
+            scratch2.subtract(i.second);
         if (conf.subset_feature(gid_set_size(scratch2))) {
             std::unordered_multimap<uint32_t, uint32_t> blah;
             feature_gids.insert(std::make_pair(feat, std::move(scratch2)));
             feature_candidate_chunks.insert(std::make_pair(feat, std::move(blah)));
         }
-        hb_set_add(t, feat);
     }
 
     remaining_gids.copy(gid_closure);
@@ -613,6 +616,9 @@ void builder::process(const char *fname) {
             chunks.push_back(std::move(base));
     }
 
+    all_codepoints = hb_map_create();
+    all_gids = hb_map_create();
+
     std::cerr << std::endl << std::endl << "---- Chunk Report ----" << std::endl << std::endl;
     idx = -1;
     for (auto &i: chunks) {
@@ -626,10 +632,26 @@ void builder::process(const char *fname) {
         std::cerr << i.codepoints.size() << " codepoints, ";
         std::cerr << i.gids.size() << " gids, ";
         std::cerr << i.size << " bytes" << std::endl;
+        codepoint = HB_SET_VALUE_INVALID;
+        while (i.codepoints.next(codepoint)) {
+            assert(!hb_map_has(all_codepoints, codepoint));
+            hb_map_set(all_codepoints, codepoint, idx);
+        }
+        gid = HB_SET_VALUE_INVALID;
+        while (i.gids.next(gid)) {
+            assert(!hb_map_has(all_gids, gid));
+            hb_map_set(all_gids, gid, idx);
+        }
     }
+    scratch1.clear();
+    hb_map_keys(all_codepoints, scratch1.s);
+    assert(unicodes_face == scratch1);
+    scratch1.clear();
+    scratch1.add_range(0, glyph_count-1);
+    scratch2.clear();
+    hb_map_keys(all_gids, scratch2.s);
+    assert(scratch1 == scratch2);
 
-    assert(false);
-    
     /*
     out = hb_subset_or_fail(in, input);
     outblob = hb_face_reference_blob(out);
@@ -640,4 +662,41 @@ void builder::process(const char *fname) {
     const char *data = hb_blob_get_data(outblob, &size);
     myfile.write(data, size);
     myfile.close(); */
+}
+
+void builder::check_write() {
+    if (std::filesystem::exists(conf.output_dir) &&
+        !std::filesystem::is_directory(conf.output_dir)) {
+        std::string s = "Error: Path '";
+        s += conf.output_dir;
+        s += "' exists but is not a directory";
+        throw std::runtime_error(s);
+    }
+    std::filesystem::create_directory(conf.output_dir);
+}
+
+void builder::write() {
+    std::filesystem::path dirpath = conf.output_dir, filepath;
+    char buf[20];
+    uint32_t idx = -1;
+    uint32_t table1 = T_GLYF, table2 = 0;
+    if (is_cff && is_variable)
+        table1 = T_CFF2;
+    else if (is_cff)
+        table1 = T_CFF;
+    else if (is_variable)
+        table2 = T_GVAR;
+
+    for (auto &c: chunks) {
+        idx++;
+        if (idx == 0)
+            continue;
+        snprintf(buf, sizeof(buf), "%08x.chunk", idx);
+        filepath = dirpath;
+        filepath /= buf;
+        std::ofstream cfile;
+        cfile.open(filepath, std::ios::trunc | std::ios::binary);
+        c.write(cfile, infont, idx, table1, table2);
+        cfile.close();
+    }
 }

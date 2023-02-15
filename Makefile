@@ -2,9 +2,9 @@
 DEPDIR := .deps
 DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
-SRCS := builder.cc config.cc main.cc
+SRCS := builder.cc config.cc main.cc chunk.cc
 OBJS := ${SRCS:.cc=.o}
-CFLAGS := -I/home/skef/src/harfbuzz/src -g
+CFLAGS := -I/home/skef/src/harfbuzz/src -g -std=c++20
 CXXFLAGS := ${CFLAGS}
 LDFLAGS := -Wl,-rpath /home/skef/src/harfbuzz/build/src -L/home/skef/src/harfbuzz/build/src -lharfbuzz-subset -lharfbuzz -lyaml-cpp
 

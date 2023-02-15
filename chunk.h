@@ -1,5 +1,7 @@
 #include <cassert>
 
+#include <iostream>
+
 #include "wrappers.h"
 
 #pragma once
@@ -46,4 +48,7 @@ struct chunk {
         assert(feat == 0 || (from_max < c.from_min));
         from_max = c.from_max;
     }
+    void write(std::ostream &o, font &f, uint32_t idx, uint32_t table1,
+               uint32_t table2);
+               
 };

@@ -1,4 +1,5 @@
 #include <vector>
+#include <string>
 
 #include "yaml-cpp/yaml.h"
 
@@ -42,6 +43,7 @@ struct config {
     std::vector<set> point_groups;
     uint32_t feat_subset_cutoff = 0xFFFF;
     uint32_t target_chunk_size = 0x8FFF;
+    std::string output_dir {"subset_tmp"};
     void load_points(YAML::Node n, set &s);
     void load_ordered_points(YAML::Node n, std::vector<uint32_t> &s);
     void load(const char *cfname = "config.yaml");

@@ -54,6 +54,9 @@ void config::load(const char *cfname) {
     auto targ_chunk_sz = yc["target_chunk_size"];
     if (targ_chunk_sz.IsScalar())
         target_chunk_size = targ_chunk_sz.as<uint32_t>();
+    auto outdir = yc["output_dir"];
+    if (outdir.IsScalar())
+        output_dir = outdir.as<std::string>();
 
     std::cerr << "Config:" << std::endl;
     std::cerr << "  feature subsetting cutoff size: " << feat_subset_cutoff << std::endl;
