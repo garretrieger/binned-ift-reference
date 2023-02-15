@@ -4,15 +4,15 @@
 
 #pragma once
 
+struct face;
+
 struct set {
     hb_set_t *s;
-    set()  { s = hb_set_create(); }
-    set(const set &st) {
-        s = st.s;
-        hb_set_reference(s);
-    }
+    set() { s = hb_set_create(); }
+    set(const set &st) = delete;
     set(set &&st) {
-
+        s = st.s;
+        st.s = hb_set_create();
     }
     ~set() { destroy(); }
     void copy(set &st) {
@@ -31,7 +31,7 @@ struct set {
     }
     bool operator == (const set &st) { return hb_set_is_equal(s, st.s); }
     void clear() { hb_set_clear(s); }
-    bool has(hb_codepoint_t cp) { return hb_set_has(s, cp); }
+    bool has(hb_codepoint_t cp) const { return hb_set_has(s, cp); }
     void add(hb_codepoint_t cp) { hb_set_add(s, cp); }
     void add_range(hb_codepoint_t f, hb_codepoint_t l) {
         hb_set_add_range(s, f, l);
@@ -40,10 +40,10 @@ struct set {
     void del_range(hb_codepoint_t f, hb_codepoint_t l) {
         hb_set_del_range(s, f, l);
     }
-    hb_codepoint_t min() { return hb_set_get_min(s); }
-    hb_codepoint_t max() { return hb_set_get_max(s); }
-    unsigned int size() { return hb_set_get_population(s); }
-    bool is_empty() { return hb_set_is_empty(s); }
+    hb_codepoint_t min() const { return hb_set_get_min(s); }
+    hb_codepoint_t max() const { return hb_set_get_max(s); }
+    unsigned int size() const { return hb_set_get_population(s); }
+    bool is_empty() const { return hb_set_is_empty(s); }
     void subtract(const set &st) { hb_set_subtract(s, st.s); }
     void intersect(const set &st) { hb_set_intersect(s, st.s); }
     void _union(const set &st) { hb_set_union(s, st.s); }
@@ -51,8 +51,8 @@ struct set {
         hb_set_symmetric_difference(s, st.s);
     }
     void invert() { hb_set_invert(s); }
-    bool is_subset(const set &st) { return hb_set_is_subset(s, st.s); }
-    bool next(hb_codepoint_t &cp) { return hb_set_next(s, &cp); }
+    bool is_subset(const set &st) const { return hb_set_is_subset(s, st.s); }
+    bool next(hb_codepoint_t &cp) const { return hb_set_next(s, &cp); }
  private:
     void destroy() { if (s) hb_set_destroy(s); }
 };
@@ -72,6 +72,10 @@ struct face {
     face(hb_face_t *fa) { f = fa; }
     face(const face &fa) { f = hb_face_reference(fa.f); }
     ~face() { destroy(); }
+    void create_preprocessed(const face &fa) {
+        destroy();
+        f = hb_subset_preprocess(fa.f);
+    }
     void create(blob &b) { destroy(); f = hb_face_create(b.b, 0); }
     uint32_t get_glyph_count() { return hb_face_get_glyph_count(f); }
     void get_table_tags(set &ts) {
@@ -125,4 +129,23 @@ struct subset_input {
         hb_face_t *r = hb_subset_or_fail(f.f, i);
         return face(r);
     }
+};
+
+struct plan {
+    hb_subset_plan_t *p;
+    plan(const face &f, const subset_input &si) {
+        p = hb_subset_plan_create_or_fail(f.f, si.i);
+    }
+    ~plan() { destroy(); }
+    hb_map_t *unicode_to_old_glyph_mapping() {
+        return hb_subset_plan_unicode_to_old_glyph_mapping(p);
+    }
+    hb_map_t *new_to_old_glyph_mapping() {
+        return hb_subset_plan_new_to_old_glyph_mapping(p);
+    }
+    hb_map_t *old_to_new_glyph_mapping() {
+        return hb_subset_plan_old_to_new_glyph_mapping(p);
+    }
+ private:
+    void destroy() { hb_subset_plan_destroy(p); }
 };

@@ -1,4 +1,6 @@
 
+DEPDIR := .deps
+DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
 SRCS := builder.cc config.cc main.cc
 OBJS := ${SRCS:.cc=.o}
@@ -9,8 +11,15 @@ LDFLAGS := -Wl,-rpath /home/skef/src/harfbuzz/build/src -L/home/skef/src/harfbuz
 chunkify: ${OBJS}
 	${CXX} -o $@ ${OBJS} ${LDFLAGS}
 
-%.o: %.cc
-	${CXX} ${CXXFLAGS} -c $<
+%.o : %.cc ${DEPDIR}/%.d | ${DEPDIR}
+	${CXX} ${CXXFLAGS} ${DEPFLAGS} -c $<
+
+${DEPDIR}: ; @mkdir -p $@
 
 clean:
 	${RM} chunkify ${OBJS}
+
+DEPFILES := $(SRCS:%.cc=$(DEPDIR)/%.d)
+$(DEPFILES):
+
+include ${wildcard ${DEPFILES}}
