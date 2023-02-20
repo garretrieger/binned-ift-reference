@@ -65,12 +65,22 @@ void config::load(const char *cfname) {
     std::cerr << "  total point population: " << used_points.size() << std::endl;
     std::cerr << "  # of ordered point groups: " << ordered_point_groups.size();
     std::cerr << " (";
-    for (auto v: ordered_point_groups)
-        std::cerr << v.size() << ",";
+    bool printed = false;
+    for (auto &v: ordered_point_groups) {
+        if (printed)
+            std::cerr << ", ";
+        printed = true;
+        std::cerr << v.size();
+    }
     std::cerr << ")" << std::endl;
     std::cerr << "  # of other point groups: " << point_groups.size();
     std::cerr << " (";
-    for (auto &v: point_groups)
-        std::cerr << v.size() << ",";
+    printed = false;
+    for (auto &v: point_groups) {
+        if (printed)
+            std::cerr << ", ";
+        printed = true;
+        std::cerr << v.size();
+    }
     std::cerr << ")" << std::endl;
 }

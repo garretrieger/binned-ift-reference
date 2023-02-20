@@ -1,5 +1,4 @@
 
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -105,20 +104,19 @@ void builder::process_overlaps(uint32_t gid, uint32_t chid,
 
     if (move) {
         // Move the gid and its codepoints into the base
-        auto range = nominal_revmap.equal_range(gid);
         std::cerr << "Moving gid " << gid << " to chunk 0" << std::endl;
         assert(ch.gids.has(gid));
         ch.gids.del(gid);
         chunks[0].gids.add(gid);
-        for (auto it = range.first; it != range.second; ++it) {
+        auto [start, end] = nominal_revmap.equal_range(gid);
+        for (auto it = start; it != end; ++it) {
             assert(ch.codepoints.has(it->second));
             ch.codepoints.del(it->second);
             chunks[0].codepoints.add(it->second);
         }
         ch.size -= gid_size(gid);
     } else {
-        for (auto it: v) {
-            nid = it;
+        for (auto nid: v) {
             auto &chv = current_chunk(nid);
             if (chid != nid) {
                 std::cerr << "Merging chunk " << nid << "into chunk " << chid << std::endl;
@@ -185,7 +183,7 @@ void builder::process_feature_candidates(uint32_t feat, set &gids,
 }
 
 
-void builder::process(const char *fname) {
+void builder::process(std::filesystem::path &fname) {
     uint32_t codepoint, gid, feat, last_gid;
     set scratch1, scratch2, remaining_gids, remaining_points;
     int idx;
@@ -204,7 +202,7 @@ void builder::process(const char *fname) {
     std::unordered_map<uint32_t, std::unordered_multimap<uint32_t, uint32_t>> feature_candidate_chunks;
     std::vector<uint32_t> v;
 
-    inblob.load(fname);
+    inblob.load(fname.c_str());
     inface.create(inblob);
     glyph_count = inface.get_glyph_count();
     infont.create(inface);
@@ -240,6 +238,12 @@ void builder::process(const char *fname) {
     } else
         throw std::runtime_error("No CFF, CFF2 or glyf table in font, exiting");
 
+    if (is_cff) {
+        cff_charstrings_offset = hb_font_get_cff_charstrings_offset(infont.f);
+        assert(cff_charstrings_offset != -1);
+        std::cerr << "CharStrings Offset: " << cff_charstrings_offset << std::endl;
+    }
+
     // Read in the feature tags
     {
         hb_tag_t ftags[16];
@@ -273,11 +277,13 @@ void builder::process(const char *fname) {
 
     // Initialize re-usable input
     flags = HB_SUBSET_FLAGS_DEFAULT;
-    flags |= HB_SUBSET_FLAGS_RETAIN_GIDS | // HB_SUBSET_FLAGS_DESUBROUTINIZE |
-             HB_SUBSET_FLAGS_NAME_LEGACY |
-             HB_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED |
-             HB_SUBSET_FLAGS_NOTDEF_OUTLINE | HB_SUBSET_FLAGS_GLYPH_NAMES |
-             HB_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES;
+    flags |= HB_SUBSET_FLAGS_RETAIN_GIDS 
+             | HB_SUBSET_FLAGS_NAME_LEGACY
+             | HB_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED
+             | HB_SUBSET_FLAGS_NOTDEF_OUTLINE
+             | HB_SUBSET_FLAGS_GLYPH_NAMES
+             | HB_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
+             ;
     input.set_flags(flags);
 
     t = input.unicode_set();
@@ -457,8 +463,8 @@ void builder::process(const char *fname) {
                 assert(i.gids.has(gid));
                 i.gids.del(gid);
                 chunks[0].gids.add(gid);
-                auto range = nominal_revmap.equal_range(gid);
-                for (auto it = range.first; it != range.second; ++it) {
+                auto [start, end] = nominal_revmap.equal_range(gid);
+                for (auto it = start; it != end; ++it) {
                     assert(i.codepoints.has(it->second));
                     i.codepoints.del(it->second);
                     chunks[0].codepoints.add(it->second);
@@ -651,17 +657,6 @@ void builder::process(const char *fname) {
     scratch2.clear();
     hb_map_keys(all_gids, scratch2.s);
     assert(scratch1 == scratch2);
-
-    /*
-    out = hb_subset_or_fail(in, input);
-    outblob = hb_face_reference_blob(out);
-
-    std::ofstream myfile;
-    myfile.open("Libout.otf", std::ios::out | std::ios::app | std::ios::binary);
-    unsigned int size;
-    const char *data = hb_blob_get_data(outblob, &size);
-    myfile.write(data, size);
-    myfile.close(); */
 }
 
 void builder::check_write() {
@@ -696,7 +691,7 @@ void builder::write() {
         filepath /= buf;
         std::ofstream cfile;
         cfile.open(filepath, std::ios::trunc | std::ios::binary);
-        c.write(cfile, infont, idx, table1, table2);
+        c.compile(cfile, infont, idx, table1, table2);
         cfile.close();
     }
 }

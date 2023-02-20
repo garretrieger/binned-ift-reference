@@ -1,7 +1,10 @@
 #include <cassert>
 
+#include <map>
 #include <iostream>
+#include <utility>
 
+#include "merger.h"
 #include "wrappers.h"
 
 #pragma once
@@ -48,7 +51,7 @@ struct chunk {
         assert(feat == 0 || (from_max < c.from_min));
         from_max = c.from_max;
     }
-    void write(std::ostream &o, font &f, uint32_t idx, uint32_t table1,
-               uint32_t table2);
-               
+    void compile(std::ostream &os, font &f, uint16_t idx, uint32_t table1,
+                 uint32_t table2, uint32_t offset = 0);
+    static uint16_t addrecs(std::istream &is, uint32_t length, merger &m);
 };

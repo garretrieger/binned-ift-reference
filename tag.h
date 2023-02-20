@@ -13,7 +13,7 @@ constexpr uint32_t tag(const char *s) {
 #define T_GLYF tag("glyf")
 #define T_GVAR tag("GVAR")
 
-void ptag(std::ostream &out, uint32_t tag) {
+inline void ptag(std::ostream &out, uint32_t tag) {
     char o;
     for (int i = 3; i >= 0; i--) {
         o = (char)(tag >> (8*i) & 0xff);

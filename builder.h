@@ -1,4 +1,5 @@
 #include <unordered_map>
+#include <filesystem>
 
 #include "chunk.h"
 #include "config.h"
@@ -11,7 +12,7 @@
 class builder {
  public:
     builder(config &c) : conf(c) {}
-    void process(const char *fname);
+    void process(std::filesystem::path &fname);
     void check_write();
     void write();
     ~builder() {
@@ -24,11 +25,12 @@ class builder {
     }
  private:
     config &conf;
-    blob inblob, outblob;
-    face inface, subface, outface;
+    blob inblob;
+    face inface, subface;
     font infont;
     subset_input input;
     uint32_t glyph_count;
+    int cff_charstrings_offset = -1;
 
     std::unordered_map<uint32_t, uint32_t> glyph_sizes;
 

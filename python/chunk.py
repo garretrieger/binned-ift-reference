@@ -7,7 +7,7 @@ CHUNK_HEADER_FORMAT = """
     majorVersion:       H
     minorVersion:       H
     checksum:           I
-    chunkIndex:         I
+    chunkIndex:         H
     glyphCount:         I
     tableCount:         B
 """
