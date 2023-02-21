@@ -48,6 +48,10 @@ struct config {
     void load_ordered_points(YAML::Node n, std::vector<uint32_t> &s);
     void load(const char *cfname = "config.yaml");
     bool subset_feature(uint32_t s) { return s >= feat_subset_cutoff; }
+    bool desubroutinize() { return true; }
+    bool namelegacy() { return true; }
+    bool passunrecognized() { return false; }
+    bool allgids() { return false; }
     void get_groups(wrapped_groups &pg) {
         for (auto &i: ordered_point_groups)
             pg.emplace_back(std::make_unique<vec_wrapper>(i));

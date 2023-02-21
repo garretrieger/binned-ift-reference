@@ -60,6 +60,12 @@ struct set {
 struct blob {
     hb_blob_t *b;
     blob() : b(NULL) {}
+    blob(hb_blob_t *bl) { b = bl; }
+    void operator = (hb_blob_t *bl) {
+        if (b) hb_blob_destroy(b);
+        b = bl;
+        hb_blob_reference(b);
+    }
     ~blob() { if (b) hb_blob_destroy(b); }
     void load(const char *fname) {
         b = hb_blob_create_from_file_or_fail(fname);
@@ -104,13 +110,6 @@ struct font {
     font() { f = hb_font_get_empty(); }
     ~font() { destroy(); }
     void create(face &fa) { destroy(); f = hb_font_create(fa.f); }
-    const char *get_glyph_content(uint32_t gid,
-                                  unsigned int &length,
-                                  const char *&var_content,
-                                  unsigned int &var_length) {
-        return hb_font_get_glyph_content(f, gid, &length, &var_content,
-                                         &var_length);
-    }
  private:
     void destroy() { hb_font_destroy(f); }
 };

@@ -2,6 +2,7 @@
 #include <filesystem>
 
 #include "chunk.h"
+#include "merger.h"
 #include "config.h"
 #include "wrappers.h"
 
@@ -25,14 +26,16 @@ class builder {
     }
  private:
     config &conf;
-    blob inblob;
-    face inface, subface;
-    font infont;
+    blob inblob, subblob;
+    face inface, subface, proface;
+    font subfont;
     subset_input input;
     uint32_t glyph_count;
     int cff_charstrings_offset = -1;
 
-    std::unordered_map<uint32_t, uint32_t> glyph_sizes;
+    uint32_t primaryOffset = 0, secondaryOffset = 0;
+    blob primaryBlob, secondaryBlob;
+    std::vector<glyphrec> primaryRecs, secondaryRecs;
 
     std::vector<chunk> chunks;
 

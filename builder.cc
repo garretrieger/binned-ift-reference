@@ -1,10 +1,12 @@
 
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 #include "builder.h"
 #include "tag.h"
+#include "streamhelp.h"
 
 std::unordered_set<uint32_t> default_features = { tag("abvm"), tag("blwm"), tag("ccmp"),
                                                   tag("locl"), tag("mark"), tag("mkmk"),
@@ -13,11 +15,12 @@ std::unordered_set<uint32_t> default_features = { tag("abvm"), tag("blwm"), tag(
                                                   tag("liga"), tag("rclt"), tag("numr") };
 
 uint32_t builder::gid_size(uint32_t gid) {
-    auto i = glyph_sizes.find(gid);
-    if (i != glyph_sizes.end())
-        return i->second;
-    else
-        return 0;
+    uint32_t r = primaryRecs[gid].length;
+    if (!is_cff && is_variable) {
+        assert(secondaryRecs.size() > gid);
+        r += secondaryRecs[gid].length;
+    }
+    return r;
 }
 
 uint32_t builder::gid_set_size(const set &s) {
@@ -119,7 +122,7 @@ void builder::process_overlaps(uint32_t gid, uint32_t chid,
         for (auto nid: v) {
             auto &chv = current_chunk(nid);
             if (chid != nid) {
-                std::cerr << "Merging chunk " << nid << "into chunk " << chid << std::endl;
+                std::cerr << "Merging chunk " << nid << " into chunk " << chid << std::endl;
                 ch.merge(chv, true);
                 chv.merged_to = chid;
             }
@@ -193,6 +196,7 @@ void builder::process(std::filesystem::path &fname) {
     hb_subset_plan_t *plan;
     hb_map_t *map, *gid_chunk_map;
     chunk base;
+    std::stringstream ss;
     std::vector<chunk> tchunks;
     wrapped_groups wg;
     std::unordered_map<uint32_t, set> feature_gids;
@@ -204,15 +208,6 @@ void builder::process(std::filesystem::path &fname) {
 
     inblob.load(fname.c_str());
     inface.create(inblob);
-    glyph_count = inface.get_glyph_count();
-    infont.create(inface);
-    for (uint32_t i = 0; i < glyph_count; i++) {
-        unsigned int l, vl;
-        const char *vc;
-        infont.get_glyph_content(i, l, vc, vl);
-        glyph_sizes.try_emplace(i, l + vl);
-    }
-
     inface.get_table_tags(tables);
 
     // Determine font type
@@ -238,10 +233,120 @@ void builder::process(std::filesystem::path &fname) {
     } else
         throw std::runtime_error("No CFF, CFF2 or glyf table in font, exiting");
 
+    glyph_count = inface.get_glyph_count();
+    std::cerr << "Initial glyph count: " << glyph_count << std::endl;
+
+    // Initial subset clears out unused data and implements table
+    // requirements.  We don't retain GIDs here
+    flags = HB_SUBSET_FLAGS_DEFAULT;
+    flags |= HB_SUBSET_FLAGS_GLYPH_NAMES
+             | HB_SUBSET_FLAGS_NOTDEF_OUTLINE
+             | HB_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
+             | HB_SUBSET_FLAGS_IFTC_REQUIREMENTS
+             ;
+    if (conf.desubroutinize())
+        flags |= HB_SUBSET_FLAGS_DESUBROUTINIZE;
+    if (conf.namelegacy())
+        flags |= HB_SUBSET_FLAGS_NAME_LEGACY;
+    if (conf.passunrecognized())
+        flags |= HB_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED;
+
+    input.set_flags(flags);
+
+    t = input.unicode_set();
+    hb_set_clear(t);
+    hb_set_invert(t);
+    t = input.set(HB_SUBSET_SETS_LAYOUT_FEATURE_TAG);
+    hb_set_clear(t);
+    hb_set_invert(t);
+    if (conf.allgids()) {
+        t = input.set(HB_SUBSET_SETS_GLYPH_INDEX);
+        hb_set_clear(t);
+        hb_set_invert(t);
+    }
+
+    subface.f = hb_subset_or_fail(inface.f, input.i);
+    subblob.b = hb_face_reference_blob(subface.f);
+    subfont.create(subface);
+    glyph_count = subface.get_glyph_count();
+
+    std::cerr << "Preliminary subset glyph count: " << glyph_count << std::endl;
+
+    /*
+    hb_blob_t *outblob = hb_face_reference_blob(outface);
+    std::filesystem::path filepath = conf.output_dir;
+    filepath /= "prepped.otf";
+    std::ofstream myfile;
+    myfile.open(filepath, std::ios::trunc | std::ios::binary);
+    unsigned int size;
+    const char *data = hb_blob_get_data(outblob, &size);
+    myfile.write(data, size);
+    myfile.close();
+    */
+
+    // Read in glyph content locations
     if (is_cff) {
-        cff_charstrings_offset = hb_font_get_cff_charstrings_offset(infont.f);
+        cff_charstrings_offset = hb_font_get_cff_charstrings_offset(subfont.f);
         assert(cff_charstrings_offset != -1);
         std::cerr << "CharStrings Offset: " << cff_charstrings_offset << std::endl;
+        if (is_variable)
+            primaryBlob = hb_face_reference_table(subface.f, T_CFF2);
+        else
+            primaryBlob = hb_face_reference_table(subface.f, T_CFF);
+        unsigned int l;
+        const char *b = hb_blob_get_data(primaryBlob.b, &l);
+        ss.rdbuf()->pubsetbuf((char *) b, l);
+        ss.seekg(cff_charstrings_offset, std::ios::beg);
+        uint16_t icount = readObject<uint16_t>(ss);
+        assert(icount == glyph_count);
+        uint8_t ioffsize = readObject<uint8_t>(ss);
+        assert(ioffsize == 4);
+        uint32_t lastioff = readObject<uint32_t>(ss), ioff;
+        for (int i = 0; i < glyph_count; i++) {
+            readObject(ss, ioff);
+            primaryRecs.emplace_back(lastioff, ioff - lastioff);
+            lastioff = ioff;
+        }
+        primaryOffset = ((uint32_t) ss.tellg()) - 1;
+    } else {
+        primaryBlob = hb_face_reference_table(subface.f, T_GLYF);
+        primaryOffset = 0;
+        blob locaBlob = hb_face_reference_table(subface.f, T_LOCA);
+        unsigned int l;
+        const char *b = hb_blob_get_data(locaBlob.b, &l);
+        ss.rdbuf()->pubsetbuf((char *) b, l);
+        ss.seekg(0, std::ios::beg);
+        uint32_t lastioff = readObject<uint32_t>(ss), ioff;
+        for (int i = 0; i < glyph_count; i++) {
+            readObject(ss, ioff);
+            primaryRecs.emplace_back(lastioff, ioff - lastioff);
+            lastioff = ioff;
+        }
+        if (is_variable) {
+            ss.str("");
+            ss.clear();
+            secondaryBlob = hb_face_reference_table(subface.f, T_GVAR);
+            b = hb_blob_get_data(secondaryBlob.b, &l);
+            ss.rdbuf()->pubsetbuf((char *) b, l);
+            ss.seekg(0, std::ios::beg);
+            uint16_t u16;
+            readObject(ss, u16);
+            assert(u16 == 1);
+            readObject(ss, u16);
+            assert(u16 == 0);
+            ss.seekg(16, std::ios::beg);
+            readObject(ss, u16);
+            assert(u16 == glyph_count);
+            readObject(ss, u16);
+            assert(u16 & 0x1);
+            readObject(ss, secondaryOffset);
+            readObject(ss, lastioff);
+            for (int i = 0; i < glyph_count; i++) {
+                readObject(ss, ioff);
+                secondaryRecs.emplace_back(lastioff, ioff - lastioff);
+                lastioff = ioff;
+            }
+        }
     }
 
     // Read in the feature tags
@@ -249,7 +354,7 @@ void builder::process(std::filesystem::path &fname) {
         hb_tag_t ftags[16];
         unsigned int numtags = 16, offset = 0;
         while (true) {
-            inface.get_feature_tags(HB_OT_TAG_GSUB, offset, numtags, ftags);
+            subface.get_feature_tags(HB_OT_TAG_GSUB, offset, numtags, ftags);
             if (numtags == 0)
                 break;
             for (int i = 0; i < numtags; i++)
@@ -259,9 +364,6 @@ void builder::process(std::filesystem::path &fname) {
         }
     }
 
-    std::cerr << "Glyph count: " << glyph_count << std::endl;
-
-    subface.create_preprocessed(inface);
     nominal_map = hb_map_create();
     hb_face_collect_nominal_glyph_mapping(subface.f, nominal_map,
                                           unicodes_face.s);
@@ -271,11 +373,10 @@ void builder::process(std::filesystem::path &fname) {
         nominal_revmap.emplace(gid, codepoint);
 
     std::cerr << "Unicodes defined in cmap: " << unicodes_face.size() << std::endl;
-/*    uint32_t code = HB_SET_VALUE_INVALID;
-    while (face_unicodes.next(code))
-        std::cerr << code << std::endl; */ 
 
-    // Initialize re-usable input
+    proface.create_preprocessed(subface);
+
+    // Re-initialize input
     flags = HB_SUBSET_FLAGS_DEFAULT;
     flags |= HB_SUBSET_FLAGS_RETAIN_GIDS 
              | HB_SUBSET_FLAGS_NAME_LEGACY
@@ -288,17 +389,19 @@ void builder::process(std::filesystem::path &fname) {
 
     t = input.unicode_set();
     hb_set_set(t, unicodes_face.s);
+    /*
     t = input.set(HB_SUBSET_SETS_NO_SUBSET_TABLE_TAG);
     hb_set_set(t, tables.s);
     hb_set_del(t, T_CFF);
     hb_set_del(t, T_CFF2);
     hb_set_del(t, T_GLYF);
     hb_set_del(t, T_GVAR);
+    */
     t = input.set(HB_SUBSET_SETS_LAYOUT_FEATURE_TAG);
     hb_set_set(t, all_features.s);
 
     // Get transitive gid substitution closure for all points and features
-    plan = hb_subset_plan_create_or_fail(subface.f, input.i);
+    plan = hb_subset_plan_create_or_fail(proface.f, input.i);
     map = hb_subset_plan_old_to_new_glyph_mapping(plan);
     hb_map_keys(map, gid_closure.s);
     hb_subset_plan_destroy(plan);
@@ -311,7 +414,7 @@ void builder::process(std::filesystem::path &fname) {
             continue;
         hb_set_set(t, all_features.s);
         hb_set_del(t, feat);
-        plan = hb_subset_plan_create_or_fail(subface.f, input.i);
+        plan = hb_subset_plan_create_or_fail(proface.f, input.i);
         map = hb_subset_plan_old_to_new_glyph_mapping(plan);
         // set scratch2 to the set of GIDs missing when the feature
         // is omitted
@@ -353,20 +456,13 @@ void builder::process(std::filesystem::path &fname) {
     hb_set_set(t, base.codepoints.s);
 
     // input now has the font's base unicodes and all features we aren't
-    // subsetting
+    // subsetting separately
 
-    plan = hb_subset_plan_create_or_fail(subface.f, input.i);
+    plan = hb_subset_plan_create_or_fail(proface.f, input.i);
     map = hb_subset_plan_old_to_new_glyph_mapping(plan);
     hb_map_keys(map, base.gids.s);
     hb_subset_plan_destroy(plan);
     remaining_gids.subtract(base.gids);
-
-    /*
-    uint32_t foo = HB_SET_VALUE_INVALID;
-    while (remaining_gids.next(foo))
-        std::cerr << "remaining gid " << foo << std::endl;
-    throw std::runtime_error("done");
-    */
 
     // We now have the starting point of the base unicode set and its
     // corresponding set of gids, from the closure. remaining_gids is
@@ -396,7 +492,7 @@ void builder::process(std::filesystem::path &fname) {
 
     std::cerr << "Starting mini-chunk count: " << chunks.size() << std::endl;
 
-    // Try to reorganize the chunks so that each _cmapped_ gid "belongs to"
+    // Try to reorganize the chunks so that each cmapped gid "belongs to"
     // only one chunk. We have two options: move a gid with its codepoints
     // into the base, or merge chunks together.
     t = input.unicode_set();
@@ -405,7 +501,7 @@ void builder::process(std::filesystem::path &fname) {
     for (auto &i: chunks) {
         idx++;
         hb_set_union(t, i.codepoints.s);
-        plan = hb_subset_plan_create_or_fail(subface.f, input.i);
+        plan = hb_subset_plan_create_or_fail(proface.f, input.i);
         map = hb_subset_plan_old_to_new_glyph_mapping(plan);
         scratch1.clear();
         hb_map_keys(map, scratch1.s);
@@ -450,7 +546,7 @@ void builder::process(std::filesystem::path &fname) {
             continue;
         hb_set_set(t, unicodes_face.s);
         hb_set_subtract(t, i.codepoints.s);
-        plan = hb_subset_plan_create_or_fail(subface.f, input.i);
+        plan = hb_subset_plan_create_or_fail(proface.f, input.i);
         map = hb_subset_plan_old_to_new_glyph_mapping(plan);
         scratch1.clear();
         hb_map_keys(map, scratch1.s);
@@ -476,7 +572,7 @@ void builder::process(std::filesystem::path &fname) {
             hb_set_set(t, unicodes_face.s);
             hb_set_subtract(t, i.codepoints.s);
             hb_subset_plan_destroy(plan);
-            plan = hb_subset_plan_create_or_fail(subface.f, input.i);
+            plan = hb_subset_plan_create_or_fail(proface.f, input.i);
             map = hb_subset_plan_old_to_new_glyph_mapping(plan);
             scratch1.clear();
             hb_map_keys(map, scratch1.s);
@@ -539,7 +635,7 @@ void builder::process(std::filesystem::path &fname) {
                 hb_set_set(t, unicodes_face.s);
                 hb_set_subtract(t, i.codepoints.s);
             }
-            plan = hb_subset_plan_create_or_fail(subface.f, input.i);
+            plan = hb_subset_plan_create_or_fail(proface.f, input.i);
             map = hb_subset_plan_old_to_new_glyph_mapping(plan);
             scratch1.clear();
             hb_map_keys(map, scratch1.s);
@@ -657,6 +753,7 @@ void builder::process(std::filesystem::path &fname) {
     scratch2.clear();
     hb_map_keys(all_gids, scratch2.s);
     assert(scratch1 == scratch2);
+
 }
 
 void builder::check_write() {
@@ -691,7 +788,9 @@ void builder::write() {
         filepath /= buf;
         std::ofstream cfile;
         cfile.open(filepath, std::ios::trunc | std::ios::binary);
-        c.compile(cfile, infont, idx, table1, table2);
+        c.compile(cfile, idx, table1, primaryOffset, primaryBlob, 
+                  primaryRecs, table2, secondaryOffset, secondaryBlob,
+                  secondaryRecs);
         cfile.close();
     }
 }

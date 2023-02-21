@@ -48,14 +48,17 @@ uint16_t chunk::addrecs(std::istream &is, uint32_t length, merger &m) {
     return idx;
 }
 
-void chunk::compile(std::ostream &os, font &f, uint16_t idx,
-                    uint32_t table1, uint32_t table2, uint32_t offset) {
-    std::vector<glyphrec> blobs1, blobs2;
-    unsigned int l, vl;
-    const char *base, *c, *vc;
+void chunk::compile(std::ostream &os, uint16_t idx,
+                    uint32_t table1, uint32_t offset1,
+                    blob &blob1, std::vector<glyphrec> &recs1,
+                    uint32_t table2, uint32_t offset2,
+                    blob &blob2, std::vector<glyphrec> &recs2,
+                    uint32_t offset) {
+    unsigned int length1, length2;
     bool twotables = (table2 != 0);
-
-    base = f.get_glyph_content(0, l, vc, vl);
+    const char *base1 = hb_blob_get_data(blob1.b, &length1);
+    if (twotables)
+        const char *base2 = hb_blob_get_data(blob2.b, &length2);
     os.seekp(offset);
     writeObject(os, (uint16_t) 0);
     writeObject(os, (uint16_t) 1);
@@ -64,13 +67,8 @@ void chunk::compile(std::ostream &os, font &f, uint16_t idx,
     writeObject(os, (uint32_t) gids.size());
     writeObject(os, (uint8_t) (twotables ? 2 : 1));
     uint32_t gid = HB_SET_VALUE_INVALID;
-    while (gids.next(gid)) {
+    while (gids.next(gid))
         writeObject(os, (uint16_t) gid);
-        const char *c = f.get_glyph_content(gid, l, vc, vl);
-        blobs1.emplace_back(c - base, l);
-        if (twotables)
-            blobs2.emplace_back(vc - base, vl);
-    }
     writeObject(os, table1);
     uint32_t c_offset = sizeof(uint32_t) * gids.size();
     if (twotables) {
@@ -79,21 +77,25 @@ void chunk::compile(std::ostream &os, font &f, uint16_t idx,
     }
     c_offset += sizeof(uint32_t);  // Last offset encodes length
     c_offset += os.tellp();
-    for (auto &b: blobs1) {
+    gid = HB_SET_VALUE_INVALID;
+    while (gids.next(gid)) {
         writeObject(os, c_offset);
-        c_offset += b.length;
+        c_offset += recs1[gid].length;
     }
     if (twotables) {
-        for (auto &b: blobs2) {
+        gid = HB_SET_VALUE_INVALID;
+        while (gids.next(gid)) {
             writeObject(os, c_offset);
-            c_offset += b.length;
+            c_offset += recs2[gid].length;
         }
     }
     writeObject(os, c_offset);
-    for (auto &b: blobs1)
-        os.write(base + b.offset, b.length);
+    gid = HB_SET_VALUE_INVALID;
+    while (gids.next(gid))
+        os.write(base1 + offset1 + recs1[gid].offset, recs1[gid].length);
     if (twotables) {
-        for (auto &b: blobs2)
-            os.write(base + b.offset, b.length);
+        gid = HB_SET_VALUE_INVALID;
+        while (gids.next(gid))
+            os.write(base1 + offset1 + recs2[gid].offset, recs2[gid].length);
     }
 }

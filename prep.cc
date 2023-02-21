@@ -98,19 +98,3 @@ void prep(config &conf, const char *fname, bool desubroutinize = true) {
     myfile.write(data, size);
     myfile.close();
 }
-
-int main(int argc, char **argv) {
-    config c;
-
-    if (argc < 2) {
-        std::cerr << "Must supply font name as argument" << std::endl;
-        return 1;
-    }
-
-    try {
-        c.load();
-        prep(c, argv[1], true);
-    } catch (const std::exception &ex ) {
-        std::cerr << ex.what() << std::endl;
-    }
-}

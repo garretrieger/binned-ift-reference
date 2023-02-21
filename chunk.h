@@ -51,7 +51,11 @@ struct chunk {
         assert(feat == 0 || (from_max < c.from_min));
         from_max = c.from_max;
     }
-    void compile(std::ostream &os, font &f, uint16_t idx, uint32_t table1,
-                 uint32_t table2, uint32_t offset = 0);
+    void compile(std::ostream &os, uint16_t idx,
+                 uint32_t table1, uint32_t offset1,
+                 blob &blob1, std::vector<glyphrec> &recs1,
+                 uint32_t table2, uint32_t offset2,
+                 blob &blob2, std::vector<glyphrec> &recs2,
+                 uint32_t offset = 0);
     static uint16_t addrecs(std::istream &is, uint32_t length, merger &m);
 };

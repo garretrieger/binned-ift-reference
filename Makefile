@@ -2,22 +2,16 @@
 DEPDIR := .deps
 DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
-PSRCS := prep.cc config.cc
-CHSRCS := builder.cc config.cc main.cc chunk.cc table_IFTC.cc sfnt.cc
-SRCS := ${PSRCS} ${CHSRCS}
-POBJS := ${PSRCS:.cc=.o}
-CHOBJS := ${CHSRCS:.cc=.o}
+SRCS := builder.cc config.cc main.cc chunk.cc table_IFTC.cc sfnt.cc
+OBJS := ${SRCS:.cc=.o}
 CFLAGS := -I/home/skef/src/harfbuzz/src -g -std=c++20
 CXXFLAGS := ${CFLAGS}
 LDFLAGS := -Wl,-rpath /home/skef/src/harfbuzz/build/src -L/home/skef/src/harfbuzz/build/src -lharfbuzz-subset -lharfbuzz -lyaml-cpp
 
-all: prep chunkify
+all: chunkify
 
-chunkify: ${CHOBJS}
-	${CXX} -o $@ ${CHOBJS} ${LDFLAGS}
-
-prep: ${POBJS}
-	${CXX} -o $@ ${POBJS} ${LDFLAGS}
+chunkify: ${OBJS}
+	${CXX} -o $@ ${OBJS} ${LDFLAGS}
 
 %.o : %.cc ${DEPDIR}/%.d | ${DEPDIR}
 	${CXX} ${CXXFLAGS} ${DEPFLAGS} -c $<
@@ -25,7 +19,7 @@ prep: ${POBJS}
 ${DEPDIR}: ; @mkdir -p $@
 
 clean:
-	${RM} chunkify prep ${CHOBJS} ${POBJS}
+	${RM} chunkify ${OBJS}
 
 DEPFILES := $(SRCS:%.cc=$(DEPDIR)/%.d)
 $(DEPFILES):
