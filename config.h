@@ -1,5 +1,5 @@
 #include <vector>
-#include <string>
+#include <filesystem>
 
 #include "yaml-cpp/yaml.h"
 
@@ -43,15 +43,30 @@ struct config {
     std::vector<set> point_groups;
     uint32_t feat_subset_cutoff = 0xFFFF;
     uint32_t target_chunk_size = 0x8FFF;
-    std::string output_dir {"subset_tmp"};
+    uint8_t chunk_hex_digits = 0;
+    uint8_t chunk_dir_levels = 0;
+    std::filesystem::path _inputPath;
+    std::filesystem::path configFilePath = "config.yaml";
+    std::filesystem::path path_prefix;
+    std::filesystem::path inputPath() { return _inputPath; }
+    std::filesystem::path rangePath() { return ""; }
+    std::filesystem::path chunkPath(uint16_t idx) { return ""; }
+    std::filesystem::path filesURI() { return ""; }
+    std::filesystem::path rangeFileURI() { return ""; }
+    std::filesystem::path subsetPath() { return ""; }
+
+    int setArgs(int argc, char **argv);
+
     void load_points(YAML::Node n, set &s);
     void load_ordered_points(YAML::Node n, std::vector<uint32_t> &s);
-    void load(const char *cfname = "config.yaml");
+    void setNumChunks(uint16_t numChunks);
     bool subset_feature(uint32_t s) { return s >= feat_subset_cutoff; }
     bool desubroutinize() { return true; }
     bool namelegacy() { return true; }
     bool passunrecognized() { return false; }
     bool allgids() { return false; }
+    bool printConfig() { return true; }
+    bool noCatch() { return true; }
     void get_groups(wrapped_groups &pg) {
         for (auto &i: ordered_point_groups)
             pg.emplace_back(std::make_unique<vec_wrapper>(i));

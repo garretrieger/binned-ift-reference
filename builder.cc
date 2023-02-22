@@ -190,7 +190,7 @@ void builder::process_feature_candidates(uint32_t feat, set &gids,
 }
 
 
-void builder::process(std::filesystem::path &fname) {
+int builder::process() {
     uint32_t codepoint, gid, feat, last_gid;
     set scratch1, scratch2, remaining_gids, remaining_points;
     int idx;
@@ -210,7 +210,8 @@ void builder::process(std::filesystem::path &fname) {
     std::unordered_map<uint32_t, std::unordered_multimap<uint32_t, uint32_t>> feature_candidate_chunks;
     std::vector<uint32_t> v;
 
-    inblob.load(fname.c_str());
+    std::filesystem::path ip = conf.inputPath();
+    inblob.load(ip.c_str());
     inface.create(inblob);
     inface.get_table_tags(tables);
 
@@ -767,8 +768,6 @@ void builder::process(std::filesystem::path &fname) {
     hb_map_keys(all_gids, scratch2.s);
     assert(scratch1 == scratch2);
 
-    std::filesystem::path dirpath = conf.output_dir, filepath;
-
     table_IFTC tiftc;
     tiftc.chunkCount = chunks.size();
     tiftc.gidCount = glyph_count;
@@ -794,6 +793,8 @@ void builder::process(std::filesystem::path &fname) {
     if (curr_feat != 0)
         tiftc.featureMap.emplace(curr_feat, std::move(fm));
 
+    conf.setNumChunks(chunks.size());
+
     uint32_t table1 = T_GLYF, table2 = 0;
     if (is_cff && is_variable)
         table1 = T_CFF2;
@@ -803,15 +804,12 @@ void builder::process(std::filesystem::path &fname) {
         table2 = T_GVAR;
 
     idx = -1;
-    char nbuf[20];
     std::stringstream css;
     size_t encoded_size;
     uint8_t *encoded_buffer;
     std::vector<uint8_t> encode_buf;
-    filepath = dirpath;
-    filepath /= "chunkranges";
     std::ofstream rangefile;
-    rangefile.open(filepath, std::ios::trunc | std::ios::binary);
+    rangefile.open(conf.rangePath(), std::ios::trunc | std::ios::binary);
     uint32_t chunkOffset = 0;
     for (auto &c: chunks) {
         idx++;
@@ -831,11 +829,8 @@ void builder::process(std::filesystem::path &fname) {
                                    cs.size(), (const uint8_t *) cs.data(), &encoded_size,
                                    encode_buf.data()))
             throw std::runtime_error("Could not compress chunk");
-        snprintf(nbuf, sizeof(nbuf), "%08x.chunk.br", idx);
-        filepath = dirpath;
-        filepath /= nbuf;
         std::ofstream cfile;
-        cfile.open(filepath, std::ios::trunc | std::ios::binary);
+        cfile.open(conf.chunkPath(idx), std::ios::trunc | std::ios::binary);
         cfile.write((char *) encode_buf.data(), encoded_size);
         cfile.close();
         rangefile.write((char *) encode_buf.data(), encoded_size);
@@ -905,8 +900,8 @@ void builder::process(std::filesystem::path &fname) {
         newLocaBlob = hb_blob_create(nloca, glyph_count * 4, HB_MEMORY_MODE_READONLY, NULL, NULL);
     }
 
-    tiftc.filesURI = "foo";
-    tiftc.rangeFileURI = "bar";
+    tiftc.filesURI = conf.filesURI();
+    tiftc.rangeFileURI = conf.rangeFileURI();
 
     hb_face_t *fbldr = hb_face_builder_create();
 
@@ -932,23 +927,12 @@ void builder::process(std::filesystem::path &fname) {
     }
 
     hb_blob_t *outblob = hb_face_reference_blob(fbldr);
-    filepath = conf.output_dir;
-    filepath /= "subset.otf";
     std::ofstream myfile;
-    myfile.open(filepath, std::ios::trunc | std::ios::binary);
+    myfile.open(conf.subsetPath(), std::ios::trunc | std::ios::binary);
     unsigned int size;
     const char *data = hb_blob_get_data(outblob, &size);
     myfile.write(data, size);
     myfile.close();
-}
 
-void builder::check_write() {
-    if (std::filesystem::exists(conf.output_dir) &&
-        !std::filesystem::is_directory(conf.output_dir)) {
-        std::string s = "Error: Path '";
-        s += conf.output_dir;
-        s += "' exists but is not a directory";
-        throw std::runtime_error(s);
-    }
-    std::filesystem::create_directory(conf.output_dir);
+    return 0;
 }

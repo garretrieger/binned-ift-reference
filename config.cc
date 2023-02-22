@@ -1,6 +1,16 @@
 #include <iostream>
+#include <cmath>
 
 #include "config.h"
+
+void config::setNumChunks(uint16_t numChunks) {
+    if (chunk_hex_digits > 0)
+        return;
+    uint8_t nbits = ilogb(numChunks) + 1, nhd; 
+    chunk_hex_digits = nbits / 4;
+    if (nbits % 4)
+        chunk_hex_digits++;
+}
 
 void config::load_points(YAML::Node n, set &s) {
     for (int k = 0; k < n.size(); k++) {
@@ -29,8 +39,14 @@ void config::load_ordered_points(YAML::Node n, std::vector<uint32_t> &v) {
     }
 }
 
-void config::load(const char *cfname) {
-    auto yc = YAML::LoadFile(cfname);
+int config::setArgs(int argc, char **argv) {
+    if (argc < 2) {
+        std::cerr << "Must supply font name as argument" << std::endl;
+        return 1;
+    }
+
+    _inputPath = argv[1];
+    auto yc = YAML::LoadFile(configFilePath);
 
     load_points(yc["base_points"], base_points);
     used_points.copy(base_points);
@@ -54,9 +70,9 @@ void config::load(const char *cfname) {
     auto targ_chunk_sz = yc["target_chunk_size"];
     if (targ_chunk_sz.IsScalar())
         target_chunk_size = targ_chunk_sz.as<uint32_t>();
-    auto outdir = yc["output_dir"];
-    if (outdir.IsScalar())
-        output_dir = outdir.as<std::string>();
+
+    if (!printConfig())
+        return 0;
 
     std::cerr << "Config:" << std::endl;
     std::cerr << "  feature subsetting cutoff size: " << feat_subset_cutoff << std::endl;
@@ -83,4 +99,5 @@ void config::load(const char *cfname) {
         std::cerr << v.size();
     }
     std::cerr << ")" << std::endl;
+    return 0;
 }

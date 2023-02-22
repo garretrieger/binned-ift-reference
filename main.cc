@@ -9,22 +9,19 @@ int main(int argc, char **argv) {
     config c;
     builder b(c);
 
-    if (argc < 2) {
-        std::cerr << "Must supply font name as argument" << std::endl;
-        return 1;
-    }
+    int r = c.setArgs(argc, argv);
+    if (r != 0)
+        return r;
 
-    try {
-        c.load();
-        b.check_write();
-        /*
-        std::filesystem::path filepath = c.output_dir;
-        filepath /= "prepped.otf";
-        */
-        std::filesystem::path filepath {argv[1]};
-        b.process(filepath);
-    } catch (const std::exception &ex ) {
-        std::cerr << ex.what() << std::endl;
+    if (c.noCatch()) {
+        r = b.process();
+    } else {
+        try {
+            r = b.process();
+        } catch (const std::exception &ex ) {
+            r = 1;
+            std::cerr << ex.what() << std::endl;
+        }
     }
-    return 0;
+    return r;
 }
