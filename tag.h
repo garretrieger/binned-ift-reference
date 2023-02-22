@@ -11,7 +11,7 @@ constexpr uint32_t tag(const char *s) {
 #define T_CFF tag("CFF ")
 #define T_CFF2 tag("CFF2")
 #define T_GLYF tag("glyf")
-#define T_LOCA tag("glyf")
+#define T_LOCA tag("loca")
 #define T_GVAR tag("GVAR")
 
 inline void ptag(std::ostream &out, uint32_t tag) {

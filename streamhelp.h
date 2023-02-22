@@ -1,6 +1,7 @@
 
 #include <iostream>
 
+#pragma once
 
 /* 1, 2, and 4 byte big-endian machine independent input */
 template<class T>

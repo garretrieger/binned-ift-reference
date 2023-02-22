@@ -23,7 +23,6 @@ int main(int argc, char **argv) {
         */
         std::filesystem::path filepath {argv[1]};
         b.process(filepath);
-        b.write();
     } catch (const std::exception &ex ) {
         std::cerr << ex.what() << std::endl;
     }

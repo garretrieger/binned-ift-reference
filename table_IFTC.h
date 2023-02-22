@@ -15,8 +15,8 @@ struct FeatureMap {
     std::vector<std::pair<uint16_t, uint16_t>> ranges;
 };
 
-class table_IFTC {
-    uint16_t majorVersion {0}, minorVersion {0}, flags {0};
+struct table_IFTC {
+    uint16_t majorVersion {0}, minorVersion {1}, flags {0};
     uint32_t chunkCount, gidCount;
     uint32_t CFFCharStringsOffset;
     std::vector<bool> chunkMap;
@@ -43,6 +43,6 @@ class table_IFTC {
         else
             writeObject(o, i8);
     }
-    unsigned int compile(std::ostream &o, uint32_t offset);
+    unsigned int compile(std::ostream &o, uint32_t offset = 0);
     void decompile(std::istream &i, uint32_t offset);
 };

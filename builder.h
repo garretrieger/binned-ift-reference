@@ -15,7 +15,6 @@ class builder {
     builder(config &c) : conf(c) {}
     void process(std::filesystem::path &fname);
     void check_write();
-    void write();
     ~builder() {
         if (nominal_map)
             hb_map_destroy(nominal_map);
@@ -34,7 +33,7 @@ class builder {
     int cff_charstrings_offset = -1;
 
     uint32_t primaryOffset = 0, secondaryOffset = 0;
-    blob primaryBlob, secondaryBlob;
+    blob primaryBlob, secondaryBlob, locaBlob;
     std::vector<glyphrec> primaryRecs, secondaryRecs;
 
     std::vector<chunk> chunks;

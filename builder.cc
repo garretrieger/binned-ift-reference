@@ -1,12 +1,16 @@
 
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 
+#include <brotli/encode.h>
+
 #include "builder.h"
 #include "tag.h"
 #include "streamhelp.h"
+#include "table_IFTC.h"
 
 std::unordered_set<uint32_t> default_features = { tag("abvm"), tag("blwm"), tag("ccmp"),
                                                   tag("locl"), tag("mark"), tag("mkmk"),
@@ -272,18 +276,6 @@ void builder::process(std::filesystem::path &fname) {
 
     std::cerr << "Preliminary subset glyph count: " << glyph_count << std::endl;
 
-    /*
-    hb_blob_t *outblob = hb_face_reference_blob(outface);
-    std::filesystem::path filepath = conf.output_dir;
-    filepath /= "prepped.otf";
-    std::ofstream myfile;
-    myfile.open(filepath, std::ios::trunc | std::ios::binary);
-    unsigned int size;
-    const char *data = hb_blob_get_data(outblob, &size);
-    myfile.write(data, size);
-    myfile.close();
-    */
-
     // Read in glyph content locations
     if (is_cff) {
         cff_charstrings_offset = hb_font_get_cff_charstrings_offset(subfont.f);
@@ -309,11 +301,27 @@ void builder::process(std::filesystem::path &fname) {
         }
         primaryOffset = ((uint32_t) ss.tellg()) - 1;
     } else {
+        {
+            blob headBlob = hb_face_reference_table(subface.f, tag("head"));
+            unsigned int hl;
+            uint16_t tt;
+            const char *hb = hb_blob_get_data(headBlob.b, &hl);
+            ss.rdbuf()->pubsetbuf((char *) hb, hl);
+            ss.seekg(0, std::ios::beg);
+            assert(readObject<uint16_t>(ss) == 1);
+            assert(readObject<uint16_t>(ss) == 0);
+            ss.seekg(50, std::ios::beg);
+            int16_t i2lf = readObject<int16_t>(ss);
+            assert(i2lf == 1);
+            ss.str("");
+            ss.clear();
+        }
         primaryBlob = hb_face_reference_table(subface.f, T_GLYF);
         primaryOffset = 0;
-        blob locaBlob = hb_face_reference_table(subface.f, T_LOCA);
+        locaBlob = hb_face_reference_table(subface.f, T_LOCA);
         unsigned int l;
         const char *b = hb_blob_get_data(locaBlob.b, &l);
+        std::cerr << "loca length: " << l << std::endl;
         ss.rdbuf()->pubsetbuf((char *) b, l);
         ss.seekg(0, std::ios::beg);
         uint32_t lastioff = readObject<uint32_t>(ss), ioff;
@@ -463,6 +471,9 @@ void builder::process(std::filesystem::path &fname) {
     hb_map_keys(map, base.gids.s);
     hb_subset_plan_destroy(plan);
     remaining_gids.subtract(base.gids);
+
+    // Keep notdef in chunk 0
+    base.gids.add(0);
 
     // We now have the starting point of the base unicode set and its
     // corresponding set of gids, from the closure. remaining_gids is
@@ -656,6 +667,8 @@ void builder::process(std::filesystem::path &fname) {
         }
     }
 
+    uint32_t nonfeat_chunkcount = chunks.size();
+
     for (auto &f: feature_candidate_chunks) {
         set &gids = feature_gids[f.first];
         std::map<uint32_t, chunk> fchunks;
@@ -754,6 +767,179 @@ void builder::process(std::filesystem::path &fname) {
     hb_map_keys(all_gids, scratch2.s);
     assert(scratch1 == scratch2);
 
+    std::filesystem::path dirpath = conf.output_dir, filepath;
+
+    table_IFTC tiftc;
+    tiftc.chunkCount = chunks.size();
+    tiftc.gidCount = glyph_count;
+    tiftc.CFFCharStringsOffset = cff_charstrings_offset;
+    tiftc.chunkMap.resize(tiftc.chunkCount);
+    tiftc.chunkMap[0] = true;
+    for (uint32_t i = 0; i < glyph_count; i++)
+        tiftc.gidMap.push_back(hb_map_get(all_gids, i));
+
+    uint32_t curr_feat = 0;
+    FeatureMap fm;
+    for (uint32_t i = nonfeat_chunkcount; i < chunks.size(); i++) {
+        chunk &c = chunks[i];
+        if (curr_feat != c.feat) {
+            if (curr_feat != 0)
+                tiftc.featureMap.emplace(curr_feat, std::move(fm));
+            curr_feat = c.feat;
+            fm.startIndex = i;
+        }
+        std::pair<uint16_t, uint16_t> range(c.from_min, c.from_max);
+        fm.ranges.push_back(range);
+    }
+    if (curr_feat != 0)
+        tiftc.featureMap.emplace(curr_feat, std::move(fm));
+
+    uint32_t table1 = T_GLYF, table2 = 0;
+    if (is_cff && is_variable)
+        table1 = T_CFF2;
+    else if (is_cff)
+        table1 = T_CFF;
+    else if (is_variable)
+        table2 = T_GVAR;
+
+    idx = -1;
+    char nbuf[20];
+    std::stringstream css;
+    size_t encoded_size;
+    uint8_t *encoded_buffer;
+    std::vector<uint8_t> encode_buf;
+    filepath = dirpath;
+    filepath /= "chunkranges";
+    std::ofstream rangefile;
+    rangefile.open(filepath, std::ios::trunc | std::ios::binary);
+    uint32_t chunkOffset = 0;
+    for (auto &c: chunks) {
+        idx++;
+        if (idx == 0)
+            continue;
+        std::cerr << "Compiling and compressing chunk " << idx << std::endl;
+        css.str("");
+        css.clear();
+        c.compile(css, idx, table1, primaryOffset, primaryBlob, 
+                  primaryRecs, table2, secondaryOffset, secondaryBlob,
+                  secondaryRecs);
+        std::string cs = css.str();
+        encoded_size = BrotliEncoderMaxCompressedSize(cs.size());
+        if (encode_buf.size() < encoded_size)
+            encode_buf.resize(encoded_size);
+        if (!BrotliEncoderCompress(BROTLI_MAX_QUALITY, BROTLI_DEFAULT_WINDOW, BROTLI_MODE_FONT,
+                                   cs.size(), (const uint8_t *) cs.data(), &encoded_size,
+                                   encode_buf.data()))
+            throw std::runtime_error("Could not compress chunk");
+        snprintf(nbuf, sizeof(nbuf), "%08x.chunk.br", idx);
+        filepath = dirpath;
+        filepath /= nbuf;
+        std::ofstream cfile;
+        cfile.open(filepath, std::ios::trunc | std::ios::binary);
+        cfile.write((char *) encode_buf.data(), encoded_size);
+        cfile.close();
+        rangefile.write((char *) encode_buf.data(), encoded_size);
+        tiftc.chunkOffsets.push_back(chunkOffset);
+        chunkOffset += encoded_size;
+    }
+    tiftc.chunkOffsets.push_back(chunkOffset);
+    rangefile.close();
+
+    set &c0g = chunks[0].gids;
+
+    ss.str("");
+    ss.clear();
+
+    hb_blob_t *newPrimaryBlob, *newSecondaryBlob = NULL, *newLocaBlob = NULL;
+
+    if (is_cff) {
+        uint8_t endchar = 14;  // CFF operator
+        unsigned int l;
+        const char *b = hb_blob_get_data(primaryBlob.b, &l);
+        char *nb = (char *) malloc(l);
+        memcpy(nb, b, cff_charstrings_offset + 3);
+        ss.rdbuf()->pubsetbuf(nb, l);
+        ss.seekp(cff_charstrings_offset + 3);
+        uint32_t nboff = 1;
+        char *nbinsert = nb + cff_charstrings_offset + 3 + (glyph_count + 1) * 4;
+        const char *bbase = b + cff_charstrings_offset + 3 + (glyph_count + 1) * 4 - 1;
+        for (uint32_t i = 0; i < glyph_count; i++) {
+            const char *from = NULL;
+            uint32_t froml = 0;
+            if (c0g.has(i)) {
+                from = bbase + primaryRecs[i].offset;
+                froml = primaryRecs[i].length;
+            } else if (!is_variable) {
+                from = (char *) &endchar;
+                froml = 1;
+            }
+            if (froml > 0)
+                memcpy(nbinsert, from, froml);
+            writeObject(ss, nboff);
+            nboff += froml;
+            nbinsert += froml;
+        }
+        writeObject(ss, nboff);
+        newPrimaryBlob = hb_blob_create(nb, nbinsert - nb, HB_MEMORY_MODE_READONLY, NULL, NULL);
+    } else {
+        unsigned int l;
+        const char *b = hb_blob_get_data(primaryBlob.b, &l);
+        char *nglyf = (char *) malloc(l);
+        char *nloca = (char *) malloc(glyph_count * 4);
+        ss.rdbuf()->pubsetbuf(nloca, glyph_count * 4);
+        ss.seekp(0);
+        char *ninsert = nglyf;
+        for (uint32_t i = 0; i < glyph_count; i++) {
+            const char *from = NULL;
+            uint32_t froml = 0;
+            if (c0g.has(i)) {
+                from = b + primaryRecs[i].offset;
+                froml = primaryRecs[i].length;
+            }
+            if (froml > 0)
+                memcpy(ninsert, from, froml);
+            writeObject(ss, (uint32_t) (ninsert - nglyf));
+            ninsert += froml;
+        }
+        newPrimaryBlob = hb_blob_create(nglyf, ninsert - nglyf, HB_MEMORY_MODE_READONLY, NULL, NULL);
+        newLocaBlob = hb_blob_create(nloca, glyph_count * 4, HB_MEMORY_MODE_READONLY, NULL, NULL);
+    }
+
+    tiftc.filesURI = "foo";
+    tiftc.rangeFileURI = "bar";
+
+    hb_face_t *fbldr = hb_face_builder_create();
+
+    css.clear();
+    tiftc.compile(css);
+    std::string iftc_str = css.str();
+    hb_blob_t *iftcblob = hb_blob_create(iftc_str.data(), iftc_str.size(), HB_MEMORY_MODE_READONLY, NULL, NULL);
+    hb_face_builder_add_table(fbldr, tag("IFTC"), iftcblob);
+    hb_blob_destroy(iftcblob);
+
+    uint32_t tbl = HB_SET_VALUE_INVALID;
+    while (tables.next(tbl)) {
+        if (tbl == tag("FFTM") || tbl == tag("DSIG"))
+            continue;
+        if (tbl == T_CFF || tbl == T_CFF2 || tbl == T_GLYF)
+            hb_face_builder_add_table(fbldr, tbl, newPrimaryBlob);
+        else if (tbl == T_LOCA)
+            hb_face_builder_add_table(fbldr, tbl, newLocaBlob);
+        else if (tbl == T_GVAR)
+            hb_face_builder_add_table(fbldr, tbl, newSecondaryBlob);
+        else
+            hb_face_builder_add_table(fbldr, tbl, hb_face_reference_table(subface.f, tbl));
+    }
+
+    hb_blob_t *outblob = hb_face_reference_blob(fbldr);
+    filepath = conf.output_dir;
+    filepath /= "subset.otf";
+    std::ofstream myfile;
+    myfile.open(filepath, std::ios::trunc | std::ios::binary);
+    unsigned int size;
+    const char *data = hb_blob_get_data(outblob, &size);
+    myfile.write(data, size);
+    myfile.close();
 }
 
 void builder::check_write() {
@@ -765,32 +951,4 @@ void builder::check_write() {
         throw std::runtime_error(s);
     }
     std::filesystem::create_directory(conf.output_dir);
-}
-
-void builder::write() {
-    std::filesystem::path dirpath = conf.output_dir, filepath;
-    char buf[20];
-    uint32_t idx = -1;
-    uint32_t table1 = T_GLYF, table2 = 0;
-    if (is_cff && is_variable)
-        table1 = T_CFF2;
-    else if (is_cff)
-        table1 = T_CFF;
-    else if (is_variable)
-        table2 = T_GVAR;
-
-    for (auto &c: chunks) {
-        idx++;
-        if (idx == 0)
-            continue;
-        snprintf(buf, sizeof(buf), "%08x.chunk", idx);
-        filepath = dirpath;
-        filepath /= buf;
-        std::ofstream cfile;
-        cfile.open(filepath, std::ios::trunc | std::ios::binary);
-        c.compile(cfile, idx, table1, primaryOffset, primaryBlob, 
-                  primaryRecs, table2, secondaryOffset, secondaryBlob,
-                  secondaryRecs);
-        cfile.close();
-    }
 }
