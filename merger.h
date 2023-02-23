@@ -32,4 +32,5 @@ struct merger {
             assert(table1 == t1 && table2 == t2);
         }
     }
+    uint16_t addChunkRecs(std::istream &is, uint32_t length);
 };

@@ -4,6 +4,7 @@
 
 /* sfnt table edit utility. */
 
+#include <cassert>
 #include <sstream>
 #include <unordered_map>
 #include <set>
@@ -27,17 +28,28 @@ struct Table {
 class sfnt {
  public:
     sfnt() {}
-    sfnt(char *buffer, uint32_t length) {
-        ss.rdbuf()->pubsetbuf(buffer, length);
+    sfnt(char *b, uint32_t l, bool so = false) {
+        setBuffer(b, l, so);
     }
-
-    void setBuffer(char *buffer, uint32_t length, bool so = false) {
-        ss.rdbuf()->pubsetbuf(buffer, length);
+    sfnt(std::string &s, bool so = false) {
+        setBuffer(s.data(), s.size(), so);
+    }
+    void setBuffer(std::string &s, bool so = false) {
+        setBuffer(s.data(), s.size(), so);
+    }
+    void setBuffer(char *b, uint32_t l, bool so = false) {
         sfntOnly = so;
+        buffer = b;
+        length = l;
+        ss.rdbuf()->pubsetbuf(buffer, length);
     }
     void read();
     void write(bool writeHead = true);
-    std::iostream &getTableStream(uint32_t tg, uint32_t &length);
+    bool has(uint32_t tg) {
+        assert(Table::known_tables.find(tg) != Table::known_tables.end());
+        return directory.find(tg) != directory.end();
+    }
+    std::istream &getTableStream(uint32_t tg, uint32_t &length);
     uint32_t getTableOffset(uint32_t tg, uint32_t &length);
 
     void adjustTable(uint32_t tag, const Table &table, bool rechecksum);
@@ -52,8 +64,11 @@ class sfnt {
     // head.checkSumAdjustment offset within head table
     static const uint32_t head_adjustment_offset = 2 * sizeof(uint32_t);
 
-    std::unordered_map<uint32_t, Table> directory;
     bool sfntOnly = false, isCff = false, isVariable = false;
     uint32_t headerSum = 0, otherRecordSum = 0, otherTableSum = 0;
-    std::stringstream ss;
+    char *buffer = NULL;
+    uint32_t length = 0;
+    std::stringstream ss, nullss;
+    std::unordered_map<uint32_t, Table> directory;
+    std::unordered_map<uint32_t, std::istringstream> streamMap;
 };

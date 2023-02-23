@@ -2,16 +2,23 @@
 DEPDIR := .deps
 DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
-SRCS := builder.cc config.cc main.cc chunk.cc table_IFTC.cc sfnt.cc
-OBJS := ${SRCS:.cc=.o}
+BDSRCS := builder.cc config.cc main.cc chunk.cc table_IFTC.cc
+CLSRCS := cmain.cc merger.cc table_IFTC.cc sfnt.cc sanitize.cc
+BDOBJS := ${BDSRCS:.cc=.o}
+CLOBJS := ${CLSRCS:.cc=.o}
 CFLAGS := -I/home/skef/src/harfbuzz/src -g -std=c++17
 CXXFLAGS := ${CFLAGS}
-LDFLAGS := -Wl,-rpath /home/skef/src/harfbuzz/build/src -L/home/skef/src/harfbuzz/build/src -lharfbuzz-subset -lharfbuzz -lyaml-cpp -lbrotlienc
+BDLIBS := -lharfbuzz-subset -lharfbuzz -lyaml-cpp -lbrotlienc -lwoff2enc
+CLLIBS := -lbrotlidec -lwoff2dec
+BDLDFLAGS := -Wl,-rpath /home/skef/src/harfbuzz/build/src -L/home/skef/src/harfbuzz/build/src
 
-all: chunkify
+all: chunkify ccmd
 
-chunkify: ${OBJS}
-	${CXX} -o $@ ${OBJS} ${LDFLAGS}
+chunkify: ${BDOBJS}
+	${CXX} -o $@ ${BDOBJS} ${BDLDFLAGS} ${BDLIBS}
+
+ccmd: ${CLOBJS}
+	${CXX} -o $@ ${CLOBJS} ${CLLIBS}
 
 %.o : %.cc ${DEPDIR}/%.d | ${DEPDIR}
 	${CXX} ${CXXFLAGS} ${DEPFLAGS} -c $<
@@ -19,7 +26,7 @@ chunkify: ${OBJS}
 ${DEPDIR}: ; @mkdir -p $@
 
 clean:
-	${RM} chunkify ${OBJS}
+	${RM} chunkify ccmd ${BDOBJS} ${CLOBJS}
 
 DEPFILES := $(SRCS:%.cc=$(DEPDIR)/%.d)
 $(DEPFILES):

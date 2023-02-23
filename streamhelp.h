@@ -73,3 +73,8 @@ static void writeObject(std::ostream &f, const T& o) {
     }
 }
 
+struct simplebuf : std::streambuf {
+    simplebuf(char *buf, size_t length) {
+        this->setg(buf, buf, buf + length);
+    }
+};

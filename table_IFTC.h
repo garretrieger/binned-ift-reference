@@ -1,8 +1,11 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include <cassert>
 
 #include "streamhelp.h"
+
+#pragma once
 
 struct FeatureMap {
     FeatureMap() {}
@@ -17,14 +20,20 @@ struct FeatureMap {
 
 struct table_IFTC {
     uint16_t majorVersion {0}, minorVersion {1}, flags {0};
-    uint32_t chunkCount, gidCount;
-    uint32_t CFFCharStringsOffset;
-    std::vector<bool> chunkMap;
+    uint32_t CFFCharStringsOffset {0};
+    uint32_t chunkCount {0};
+    std::vector<bool> chunkSet;
     std::vector<uint16_t> gidMap;
     std::unordered_map<uint32_t, FeatureMap> featureMap;
     std::vector<uint32_t> chunkOffsets;
     std::string filesURI, rangeFileURI;
-    void writeChunkMap(std::ostream &os);
+    void dumpChunkSet(std::ostream &os);
+    void writeChunkSet(std::ostream &os);
+    void setChunkCount(uint32_t cc) {
+        chunkCount = cc;
+        chunkSet.clear();
+        chunkSet.resize(chunkCount + 8);
+    }
     uint16_t readChunkIndex(std::istream &i) {
         uint8_t i8;
         uint16_t i16;
@@ -44,5 +53,6 @@ struct table_IFTC {
             writeObject(o, i8);
     }
     unsigned int compile(std::ostream &o, uint32_t offset = 0);
-    void decompile(std::istream &i, uint32_t offset);
+    void decompile(std::istream &i, uint32_t offset = 0);
+    void dump(std::ostream &o, bool full = false);
 };

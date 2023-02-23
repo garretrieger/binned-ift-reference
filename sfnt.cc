@@ -17,17 +17,18 @@ std::set<uint32_t> Table::known_tables = { tag("cmap"), tag("CFF "),
                                            tag("glyf"), tag("loca"),
                                            tag("gvar"), tag("head") };
 
-std::iostream &sfnt::getTableStream(uint32_t tg, uint32_t &length) {
+std::istream &sfnt::getTableStream(uint32_t tg, uint32_t &length) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     auto i = directory.find(tg);
-    if (i != directory.end()) {
-        ss.seekg(i->second.offset, std::ios::beg);
-        ss.seekp(i->second.offset, std::ios::beg);
-        length = i->second.length;
-    } else {
+    if (i == directory.end()) {
         length = 0;
+        return nullss;
     }
-    return ss;
+    length = i->second.length;
+    auto [si, inserted] = streamMap.emplace(tg, std::istringstream());
+    if (inserted)
+        si->second.rdbuf()->pubsetbuf(buffer + i->second.offset, i->second.length);
+    return si->second;
 }
 
 uint32_t sfnt::getTableOffset(uint32_t tg, uint32_t &length) {
@@ -53,6 +54,7 @@ void sfnt::read() {
         // case TAG('t', 'y', 'p', '1'):
         // case TAG('b', 'i', 't', 's'):
         case tag("OTTO"):
+        case tag("IFTC"):
             break;
         default:
             throw std::runtime_error("Unrecognized sfnt type.");

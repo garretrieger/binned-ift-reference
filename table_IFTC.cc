@@ -1,20 +1,32 @@
 #include "table_IFTC.h"
 
-#include <cassert>
-
 constexpr uint32_t relOffsetsOffset = 20;
 
-void table_IFTC::writeChunkMap(std::ostream &os) {
+void table_IFTC::writeChunkSet(std::ostream &os) {
     uint8_t u8 = 0;
     for (int i = 0; i < chunkCount + 8; i++) {
         if (i && i % 8 != 0) {
             writeObject(os, u8);
             u8 = 0;
         }
-        u8 = (u8 << 1) + chunkMap[i] ? 1 : 0;
+        u8 = (u8 << 1) + chunkSet[i] ? 1 : 0;
     }
 }
 
+void table_IFTC::dumpChunkSet(std::ostream &os) {
+    os << "chunkSet indexes: ";
+    bool printed = false;
+    for (uint32_t i = 0; i < chunkCount; i++) {
+        if (chunkSet[i]) {
+            if (printed)
+                os << ", ";
+            printed = true;
+            os << i;
+        }
+    }
+    os << std::endl;
+}
+            
 uint32_t table_IFTC::compile(std::ostream &os, uint32_t offset) {
     uint32_t gidMapTableOffset = 0, chunkOffsetTableOffset = 0;
     uint32_t featureMapTableOffset = 0;
@@ -24,12 +36,12 @@ uint32_t table_IFTC::compile(std::ostream &os, uint32_t offset) {
     writeObject(os, (uint16_t) 0);  // reserved
     writeObject(os, flags);
     writeObject(os, chunkCount);
-    writeObject(os, gidCount);
+    writeObject(os, (uint32_t) gidMap.size());
     writeObject(os, CFFCharStringsOffset);
     writeObject(os, gidMapTableOffset);
     writeObject(os, chunkOffsetTableOffset);
     writeObject(os, featureMapTableOffset);
-    writeChunkMap(os);
+    writeChunkSet(os);
     assert(filesURI.length() < 256);
     writeObject(os, (uint8_t) filesURI.length());
     for (auto c: filesURI)
@@ -41,9 +53,8 @@ uint32_t table_IFTC::compile(std::ostream &os, uint32_t offset) {
         writeObject(os, c);
     writeObject(os, (uint8_t) 0);
     gidMapTableOffset = ((uint32_t) os.tellp()) - offset;
-    assert(gidMap.size() == gidCount);
     bool writing = false;
-    for (uint32_t i = 0; i < gidCount; i++) {
+    for (uint32_t i = 0; i < gidMap.size(); i++) {
         if (!writing && gidMap[i] == 0)
             continue;
         else if (!writing) {
@@ -85,10 +96,15 @@ uint32_t table_IFTC::compile(std::ostream &os, uint32_t offset) {
 void table_IFTC::decompile(std::istream &is, uint32_t offset) {
     uint32_t gidMapTableOffset, chunkOffsetTableOffset;
     uint32_t featureMapTableOffset;
+    uint32_t gidCount;
     uint16_t firstMappedGid;
     is.seekg(offset);
     readObject(is, majorVersion);
+    if (majorVersion != 0)
+        throw std::runtime_error("IFTC table majorVersion != 0, will not read");
     readObject(is, minorVersion);
+    if (minorVersion != 1)
+        throw std::runtime_error("IFTC table minorVersion != 1, will not read");
     readObject<uint16_t>(is);  // reserved
     readObject(is, flags);
     readObject(is, chunkCount);
@@ -98,11 +114,11 @@ void table_IFTC::decompile(std::istream &is, uint32_t offset) {
     readObject(is, chunkOffsetTableOffset);
     readObject(is, featureMapTableOffset);
     uint8_t u8;
-    chunkMap.resize(chunkCount + 8);
+    chunkSet.resize(chunkCount + 8);
     for (int i=0; i < chunkCount/8 + 1; i++) {
         readObject(is, u8);
         for (int j = 0; j < 8; j++) {
-            chunkMap[i * 8 + j] = u8 & 1;
+            chunkSet[i * 8 + j] = u8 & 1;
             u8 >>= 1;
         }
     }
@@ -150,4 +166,36 @@ void table_IFTC::decompile(std::istream &is, uint32_t offset) {
             }
         }
     }
+}
+
+void table_IFTC::dump(std::ostream &os, bool full) {
+    os << "majorVersion: " << majorVersion << std::endl;
+    os << "minorVersion: " << minorVersion << std::endl;
+    os << "chunkCount: " << chunkCount << std::endl;
+    os << "gidCount: " << gidMap.size() << std::endl;
+    dumpChunkSet(os);
+    if (full) {
+        os << "gidMap: ";
+        bool printed = false;
+        for (uint32_t i = 0; i < gidMap.size(); i++) {
+            if (!printed)
+                os << ", ";
+            printed = true;
+            os << i << ":" << gidMap[i];
+        }
+        os << std::endl;
+    }
+    if (full && chunkOffsets.size() > 0) {
+        os << "chunkOffsets: ";
+        bool printed = false;
+        for (uint32_t i = 0; i < chunkOffsets.size(); i++) {
+            if (!printed)
+                os << ", ";
+            printed = true;
+            os << i << ":" << chunkOffsets[i];
+        }
+        os << std::endl;
+    }
+    os << "filesURI: " << filesURI << std::endl;
+    os << "rangeFileURI: " << rangeFileURI << std::endl;
 }

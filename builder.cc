@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 #include <brotli/encode.h>
+#include <woff2/encode.h>
 
 #include "builder.h"
 #include "tag.h"
@@ -769,11 +770,9 @@ int builder::process() {
     assert(scratch1 == scratch2);
 
     table_IFTC tiftc;
-    tiftc.chunkCount = chunks.size();
-    tiftc.gidCount = glyph_count;
     tiftc.CFFCharStringsOffset = cff_charstrings_offset;
-    tiftc.chunkMap.resize(tiftc.chunkCount);
-    tiftc.chunkMap[0] = true;
+    tiftc.setChunkCount(chunks.size());
+    tiftc.chunkSet[0] = true;
     for (uint32_t i = 0; i < glyph_count; i++)
         tiftc.gidMap.push_back(hb_map_get(all_gids, i));
 
@@ -905,6 +904,7 @@ int builder::process() {
 
     hb_face_t *fbldr = hb_face_builder_create();
 
+    css.str("");
     css.clear();
     tiftc.compile(css);
     std::string iftc_str = css.str();
@@ -927,11 +927,27 @@ int builder::process() {
     }
 
     hb_blob_t *outblob = hb_face_reference_blob(fbldr);
-    std::ofstream myfile;
-    myfile.open(conf.subsetPath(), std::ios::trunc | std::ios::binary);
     unsigned int size;
     const char *data = hb_blob_get_data(outblob, &size);
+    css.clear();
+    ss.rdbuf()->pubsetbuf((char *)data, size);
+    ss.seekp(0, std::ios::beg);
+    writeObject(ss, tag("IFTC"));
+    std::ofstream myfile;
+    myfile.open(conf.subsetPath(is_cff), std::ios::trunc | std::ios::binary);
     myfile.write(data, size);
+    myfile.close();
+
+    size_t woff2_size = woff2::MaxWOFF2CompressedSize((uint8_t *)data, size);
+    std::string woff2_out(woff2_size, 0);
+
+    woff2::WOFF2Params params;
+    if (!woff2::ConvertTTFToWOFF2((uint8_t *)data, size, (uint8_t *)woff2_out.data(), &woff2_size, params))
+        throw std::runtime_error("Could not WOFF2 compress font");
+    woff2_out.resize(woff2_size);
+
+    myfile.open(conf.woff2Path(), std::ios::trunc | std::ios::binary);
+    myfile.write(woff2_out.data(), woff2_size);
     myfile.close();
 
     return 0;

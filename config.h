@@ -45,18 +45,80 @@ struct config {
     uint32_t target_chunk_size = 0x8FFF;
     uint8_t chunk_hex_digits = 0;
     uint8_t chunk_dir_levels = 0;
-    std::filesystem::path _inputPath;
+    std::string rangeFilename = "rangefile";
+    std::filesystem::path _inputPath, pathPrefix;
     std::filesystem::path configFilePath = "config.yaml";
     std::filesystem::path path_prefix;
     std::filesystem::path inputPath() { return _inputPath; }
-    std::filesystem::path rangePath() { return ""; }
-    std::filesystem::path chunkPath(uint16_t idx) { return ""; }
-    std::filesystem::path filesURI() { return ""; }
-    std::filesystem::path rangeFileURI() { return ""; }
-    std::filesystem::path subsetPath() { return ""; }
+    std::filesystem::path rangePath() { return pathPrefix / rangeFilename; }
+    std::filesystem::path chunkPath(uint16_t idx) {
+        std::filesystem::path r = pathPrefix;
+        char buf[10]; 
+        snprintf(buf, sizeof(buf), "%0*x", (int) chunk_hex_digits, (int) idx);
+        for (int i = 0; i < chunk_hex_digits - 2; i++) {
+            std::string l {buf[i]};
+            r /= l;
+        }
+        r /= "chunk";
+        r += buf;
+        r += ".br";
+        return r;
+    }
+    std::string filesURI() { 
+        char buf[10];
+        std::string s("./");
+        s += pathPrefix.filename();
+        s += "/";
+        for (int i = chunk_hex_digits-1; i >= 2; i--) {
+            snprintf(buf, sizeof(buf), "$%d/", i);
+            s += buf;
+        }
+        s += "chunk";
+        for (int i = chunk_hex_digits; i > 0; i--) { 
+            snprintf(buf, sizeof(buf), "$%d", i);
+            s += buf;
+        }
+        s += ".br";
+        return s;
+    }
+
+    std::string rangeFileURI() {
+        std::string s("./");
+        s += pathPrefix.filename();
+        s += "/";
+        s += rangeFilename;
+        return s;
+    }
+
+    std::filesystem::path subsetPath(bool is_cff) {
+        std::filesystem::path r = pathPrefix;
+        r.replace_extension(is_cff ? "otf" : "ttf");
+        return r;
+    }
+    std::filesystem::path woff2Path() {
+        std::filesystem::path r = pathPrefix;
+        r.replace_extension("woff2");
+        return r;
+    }
 
     int setArgs(int argc, char **argv);
 
+    void makeChunkDirs() {
+        if (chunk_hex_digits > 2)
+            makeChunkSubDirs(pathPrefix, chunk_hex_digits - 2);
+    }
+
+    void makeChunkSubDirs(std::filesystem::path &p, uint8_t depth) {
+        const char *key = "0123456789abcdef";
+        for (int i = 0; i < 16; i++) {
+            std::string l{key[i]};
+            std::filesystem::path a = p / l;
+            if (depth > 0)
+                makeChunkSubDirs(a, depth-1);
+        }
+    }
+
+    bool prepDir(std::filesystem::path &p, bool thrw = true);
     void load_points(YAML::Node n, set &s);
     void load_ordered_points(YAML::Node n, std::vector<uint32_t> &s);
     void setNumChunks(uint16_t numChunks);

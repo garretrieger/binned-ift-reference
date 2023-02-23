@@ -4,12 +4,11 @@
 #include "config.h"
 
 void config::setNumChunks(uint16_t numChunks) {
-    if (chunk_hex_digits > 0)
-        return;
     uint8_t nbits = ilogb(numChunks) + 1, nhd; 
     chunk_hex_digits = nbits / 4;
     if (nbits % 4)
         chunk_hex_digits++;
+    makeChunkDirs();
 }
 
 void config::load_points(YAML::Node n, set &s) {
@@ -39,14 +38,55 @@ void config::load_ordered_points(YAML::Node n, std::vector<uint32_t> &v) {
     }
 }
 
+bool config::prepDir(std::filesystem::path &p, bool thrw) {
+    std::string e;
+    bool r;
+    if (std::filesystem::exists(p)) {
+        if (!std::filesystem::is_directory(p)) {
+            e = "Error: Path '";
+            e += pathPrefix;
+            e += "' exists but is not a directory";
+            return false;
+        } else
+            return true;
+    }
+    e = "Could not create directory '" ;
+    e += pathPrefix;
+    e += "'";
+    if (thrw) {
+        r = std::filesystem::create_directory(p);
+        throw std::runtime_error(e);
+    } else {
+        try {
+            r = std::filesystem::create_directory(p);
+            if (!r) {
+                std::cerr << e << std::endl;
+                return false;
+            }
+        } catch (const std::exception &ex) {
+            std::cerr << e << ex.what() << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
 int config::setArgs(int argc, char **argv) {
     if (argc < 2) {
         std::cerr << "Must supply font name as argument" << std::endl;
         return 1;
     }
 
-    _inputPath = argv[1];
     auto yc = YAML::LoadFile(configFilePath);
+    _inputPath = argv[1];
+
+    pathPrefix = _inputPath;
+    pathPrefix.replace_extension();
+    pathPrefix += "_iftc";
+
+    prepDir(pathPrefix, false);
+
+
 
     load_points(yc["base_points"], base_points);
     used_points.copy(base_points);
