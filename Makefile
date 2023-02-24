@@ -2,10 +2,11 @@
 DEPDIR := .deps
 DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
-BDSRCS := builder.cc config.cc main.cc chunk.cc table_IFTC.cc
-CLSRCS := cmain.cc merger.cc table_IFTC.cc sfnt.cc sanitize.cc
+BDSRCS := chunker.cc config.cc main.cc chunk.cc table_IFTC.cc
+CLSRCS := cmain.cc merger.cc table_IFTC.cc sfnt.cc sanitize.cc unchunk.cc
 BDOBJS := ${BDSRCS:.cc=.o}
 CLOBJS := ${CLSRCS:.cc=.o}
+SRCS := ${BDSRCS} ${CLSRCS}
 CFLAGS := -I/home/skef/src/harfbuzz/src -g -std=c++17
 CXXFLAGS := ${CFLAGS}
 BDLIBS := -lharfbuzz-subset -lharfbuzz -lyaml-cpp -lbrotlienc -lwoff2enc

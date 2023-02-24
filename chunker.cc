@@ -8,18 +8,21 @@
 #include <brotli/encode.h>
 #include <woff2/encode.h>
 
-#include "builder.h"
+#include "chunker.h"
 #include "tag.h"
 #include "streamhelp.h"
 #include "table_IFTC.h"
 
-std::unordered_set<uint32_t> default_features = { tag("abvm"), tag("blwm"), tag("ccmp"),
-                                                  tag("locl"), tag("mark"), tag("mkmk"),
-                                                  tag("rlig"), tag("calt"), tag("clig"),
-                                                  tag("curs"), tag("dist"), tag("kern"),
-                                                  tag("liga"), tag("rclt"), tag("numr") };
+std::unordered_set<uint32_t> default_features = { tag("abvm"), tag("blwm"),
+                                                  tag("ccmp"), tag("locl"),
+                                                  tag("mark"), tag("mkmk"),
+                                                  tag("rlig"), tag("calt"),
+                                                  tag("clig"), tag("curs"),
+                                                  tag("dist"), tag("kern"),
+                                                  tag("liga"), tag("rclt"),
+                                                  tag("numr") };
 
-uint32_t builder::gid_size(uint32_t gid) {
+uint32_t chunker::gid_size(uint32_t gid) {
     uint32_t r = primaryRecs[gid].length;
     if (!is_cff && is_variable) {
         assert(secondaryRecs.size() > gid);
@@ -28,7 +31,7 @@ uint32_t builder::gid_size(uint32_t gid) {
     return r;
 }
 
-uint32_t builder::gid_set_size(const set &s) {
+uint32_t chunker::gid_set_size(const set &s) {
     uint32_t r = 0, gid = HB_SET_VALUE_INVALID;
 
     while (s.next(gid)) {
@@ -37,7 +40,7 @@ uint32_t builder::gid_set_size(const set &s) {
     return r;
 }
 
-void builder::add_chunk(chunk &ch, hb_map_t *gid_chunk_map) {
+void chunker::add_chunk(chunk &ch, hb_map_t *gid_chunk_map) {
     uint32_t group_num = ch.group;
     uint32_t idx = chunks.size();
     uint32_t k = HB_SET_VALUE_INVALID;
@@ -45,13 +48,12 @@ void builder::add_chunk(chunk &ch, hb_map_t *gid_chunk_map) {
         assert(!hb_map_has(gid_chunk_map, k));
         hb_map_set(gid_chunk_map, k, idx);
     }
-    // std::cerr << "Pushing chunk group " << ch.group << " gid count " << ch.gids.size() << std::endl;
     chunks.push_back(std::move(ch));
     ch.reset();
     ch.group = group_num;
 }
 
-void builder::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
+void chunker::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
                                 set &remaining_points,
                                 std::unique_ptr<group_wrapper> &g) {
     chunk ch;
@@ -67,7 +69,9 @@ void builder::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
         uint32_t chid = hb_map_get(gid_chunk_map, gid);
         if (chid != HB_MAP_VALUE_INVALID) {
             auto &ech = chunks[chid];
-            std::cerr << "Found gid for codepoint " << codepoint << " in earlier chunk " << chid << ", moving." << std::endl;
+            std::cerr << "Found gid for codepoint " << codepoint;
+            std::cerr << " in earlier chunk " << chid << ", moving.";
+            std::cerr << std::endl;
             ech.codepoints.add(codepoint);
             continue;
         }
@@ -82,7 +86,7 @@ void builder::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
         add_chunk(ch, gid_chunk_map);
 }
 
-chunk &builder::current_chunk(uint32_t &chid) {
+chunk &chunker::current_chunk(uint32_t &chid) {
     chunk *r = &chunks[chid];
     while (r->merged_to != -1) {
         chid = r->merged_to;
@@ -91,7 +95,7 @@ chunk &builder::current_chunk(uint32_t &chid) {
     return *r;
 }
 
-void builder::process_overlaps(uint32_t gid, uint32_t chid,
+void chunker::process_overlaps(uint32_t gid, uint32_t chid,
                                std::vector<uint32_t> &v) {
     bool move = false;
     uint32_t nid;
@@ -127,7 +131,8 @@ void builder::process_overlaps(uint32_t gid, uint32_t chid,
         for (auto nid: v) {
             auto &chv = current_chunk(nid);
             if (chid != nid) {
-                std::cerr << "Merging chunk " << nid << " into chunk " << chid << std::endl;
+                std::cerr << "Merging chunk " << nid << " into chunk ";
+                std::cerr << chid << std::endl;
                 ch.merge(chv, true);
                 chv.merged_to = chid;
             }
@@ -135,7 +140,7 @@ void builder::process_overlaps(uint32_t gid, uint32_t chid,
     }
 }
 
-void builder::process_candidates(uint32_t gid, set &remaining_gids,
+void chunker::process_candidates(uint32_t gid, set &remaining_gids,
                                  std::vector<uint32_t> &v) {
     uint32_t size = std::numeric_limits<uint32_t>::max();
     chunk *c;
@@ -151,7 +156,7 @@ void builder::process_candidates(uint32_t gid, set &remaining_gids,
     remaining_gids.del(gid);
 }
 
-void builder::process_feature_candidates(uint32_t feat, set &gids,
+void chunker::process_feature_candidates(uint32_t feat, set &gids,
                                          uint32_t gid,
                                          std::map<uint32_t, chunk> &fchunks,
                                          std::vector<uint32_t> &v) {
@@ -191,7 +196,7 @@ void builder::process_feature_candidates(uint32_t feat, set &gids,
 }
 
 
-int builder::process() {
+int chunker::process() {
     uint32_t codepoint, gid, feat, last_gid;
     set scratch1, scratch2, remaining_gids, remaining_points;
     int idx;
@@ -201,14 +206,16 @@ int builder::process() {
     hb_subset_plan_t *plan;
     hb_map_t *map, *gid_chunk_map;
     chunk base;
-    std::stringstream ss;
+    simpleistream sis;
+    simplestream ss;
     std::vector<chunk> tchunks;
     wrapped_groups wg;
     std::unordered_map<uint32_t, set> feature_gids;
     std::unique_ptr<group_wrapper> wrap_rp;
     std::unordered_multimap<uint32_t, uint32_t> chunk_overlap;
     std::unordered_multimap<uint32_t, uint32_t> candidate_chunks;
-    std::unordered_map<uint32_t, std::unordered_multimap<uint32_t, uint32_t>> feature_candidate_chunks;
+    std::unordered_map<uint32_t, std::unordered_multimap<uint32_t, uint32_t>>
+        feature_candidate_chunks;
     std::vector<uint32_t> v;
 
     std::filesystem::path ip = conf.inputPath();
@@ -219,14 +226,17 @@ int builder::process() {
     // Determine font type
     if (tables.has(T_CFF)) {
         if (tables.has(T_CFF2))
-            throw std::runtime_error("Font has both CFF and CFF2 tables, exiting");
+            throw std::runtime_error("Font has both CFF and CFF2 tables, "
+                                     "exiting");
         else if (tables.has(T_GLYF))
-            throw std::runtime_error("Font has both CFF and glyf tables, exiting");
+            throw std::runtime_error("Font has both CFF and glyf tables, "
+                                     "exiting");
         is_cff = true;
         std::cerr << "Processing CFF font" << std::endl;
     } else if (tables.has(T_CFF2)) {
         if (tables.has(T_GLYF))
-            throw std::runtime_error("Font has both CFF and glyf tables, exiting");
+            throw std::runtime_error("Font has both CFF2 and glyf tables, "
+                                     "exiting");
         is_cff = is_variable = true;
         std::cerr << "Processing CFF2 font" << std::endl;
     } else if (tables.has(T_GLYF)) {
@@ -237,7 +247,8 @@ int builder::process() {
             std::cerr << "Processing static glyf font" << std::endl;
         }
     } else
-        throw std::runtime_error("No CFF, CFF2 or glyf table in font, exiting");
+        throw std::runtime_error("No CFF, CFF2 or glyf table in font, "
+                                 "exiting");
 
     glyph_count = inface.get_glyph_count();
     std::cerr << "Initial glyph count: " << glyph_count << std::endl;
@@ -276,47 +287,48 @@ int builder::process() {
     subfont.create(subface);
     glyph_count = subface.get_glyph_count();
 
-    std::cerr << "Preliminary subset glyph count: " << glyph_count << std::endl;
+    std::cerr << "Preliminary subset glyph count: " << glyph_count;
+    std::cerr << std::endl;
 
     // Read in glyph content locations
     if (is_cff) {
         cff_charstrings_offset = hb_font_get_cff_charstrings_offset(subfont.f);
         assert(cff_charstrings_offset != -1);
-        std::cerr << "CharStrings Offset: " << cff_charstrings_offset << std::endl;
+        std::cerr << "CharStrings Offset: " << cff_charstrings_offset;
+        std::cerr << std::endl;
         if (is_variable)
             primaryBlob = hb_face_reference_table(subface.f, T_CFF2);
         else
             primaryBlob = hb_face_reference_table(subface.f, T_CFF);
         unsigned int l;
         const char *b = hb_blob_get_data(primaryBlob.b, &l);
-        ss.rdbuf()->pubsetbuf((char *) b, l);
-        ss.seekg(cff_charstrings_offset, std::ios::beg);
-        uint16_t icount = readObject<uint16_t>(ss);
+        sis.rdbuf()->pubsetbuf((char *) b, l);
+        sis.seekg(cff_charstrings_offset);
+        uint16_t icount = readObject<uint16_t>(sis);
         assert(icount == glyph_count);
-        uint8_t ioffsize = readObject<uint8_t>(ss);
+        uint8_t ioffsize = readObject<uint8_t>(sis);
         assert(ioffsize == 4);
-        uint32_t lastioff = readObject<uint32_t>(ss), ioff;
+        uint32_t lastioff = readObject<uint32_t>(sis), ioff;
         for (int i = 0; i < glyph_count; i++) {
-            readObject(ss, ioff);
+            readObject(sis, ioff);
             primaryRecs.emplace_back(lastioff, ioff - lastioff);
             lastioff = ioff;
         }
-        primaryOffset = ((uint32_t) ss.tellg()) - 1;
+        primaryOffset = ((uint32_t) sis.tellg()) - 1;
     } else {
         {
             blob headBlob = hb_face_reference_table(subface.f, tag("head"));
             unsigned int hl;
             uint16_t tt;
             const char *hb = hb_blob_get_data(headBlob.b, &hl);
-            ss.rdbuf()->pubsetbuf((char *) hb, hl);
-            ss.seekg(0, std::ios::beg);
-            assert(readObject<uint16_t>(ss) == 1);
-            assert(readObject<uint16_t>(ss) == 0);
-            ss.seekg(50, std::ios::beg);
-            int16_t i2lf = readObject<int16_t>(ss);
+            sis.rdbuf()->pubsetbuf((char *) hb, hl);
+            sis.seekg(0);
+            assert(readObject<uint16_t>(sis) == 1);
+            assert(readObject<uint16_t>(sis) == 0);
+            sis.seekg(50);
+            int16_t i2lf = readObject<int16_t>(sis);
             assert(i2lf == 1);
-            ss.str("");
-            ss.clear();
+            sis.clear();
         }
         primaryBlob = hb_face_reference_table(subface.f, T_GLYF);
         primaryOffset = 0;
@@ -324,35 +336,34 @@ int builder::process() {
         unsigned int l;
         const char *b = hb_blob_get_data(locaBlob.b, &l);
         std::cerr << "loca length: " << l << std::endl;
-        ss.rdbuf()->pubsetbuf((char *) b, l);
-        ss.seekg(0, std::ios::beg);
-        uint32_t lastioff = readObject<uint32_t>(ss), ioff;
+        sis.rdbuf()->pubsetbuf((char *) b, l);
+        sis.seekg(0);
+        uint32_t lastioff = readObject<uint32_t>(sis), ioff;
         for (int i = 0; i < glyph_count; i++) {
-            readObject(ss, ioff);
+            readObject(sis, ioff);
             primaryRecs.emplace_back(lastioff, ioff - lastioff);
             lastioff = ioff;
         }
         if (is_variable) {
-            ss.str("");
-            ss.clear();
+            sis.clear();
             secondaryBlob = hb_face_reference_table(subface.f, T_GVAR);
             b = hb_blob_get_data(secondaryBlob.b, &l);
-            ss.rdbuf()->pubsetbuf((char *) b, l);
-            ss.seekg(0, std::ios::beg);
+            sis.rdbuf()->pubsetbuf((char *) b, l);
+            sis.seekg(0);
             uint16_t u16;
-            readObject(ss, u16);
+            readObject(sis, u16);
             assert(u16 == 1);
-            readObject(ss, u16);
+            readObject(sis, u16);
             assert(u16 == 0);
-            ss.seekg(16, std::ios::beg);
-            readObject(ss, u16);
+            sis.seekg(16);
+            readObject(sis, u16);
             assert(u16 == glyph_count);
-            readObject(ss, u16);
+            readObject(sis, u16);
             assert(u16 & 0x1);
-            readObject(ss, secondaryOffset);
-            readObject(ss, lastioff);
+            readObject(sis, secondaryOffset);
+            readObject(sis, lastioff);
             for (int i = 0; i < glyph_count; i++) {
-                readObject(ss, ioff);
+                readObject(sis, ioff);
                 secondaryRecs.emplace_back(lastioff, ioff - lastioff);
                 lastioff = ioff;
             }
@@ -382,13 +393,14 @@ int builder::process() {
     while (hb_map_next(nominal_map, &idx, &codepoint, &gid))
         nominal_revmap.emplace(gid, codepoint);
 
-    std::cerr << "Unicodes defined in cmap: " << unicodes_face.size() << std::endl;
+    std::cerr << "Unicodes defined in cmap: " << unicodes_face.size();
+    std::cerr << std::endl;
 
     proface.create_preprocessed(subface);
 
     // Re-initialize input
     flags = HB_SUBSET_FLAGS_DEFAULT;
-    flags |= HB_SUBSET_FLAGS_RETAIN_GIDS 
+    flags |= HB_SUBSET_FLAGS_RETAIN_GIDS
              | HB_SUBSET_FLAGS_NAME_LEGACY
              | HB_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED
              | HB_SUBSET_FLAGS_NOTDEF_OUTLINE
@@ -438,7 +450,8 @@ int builder::process() {
         if (conf.subset_feature(gid_set_size(scratch2))) {
             std::unordered_multimap<uint32_t, uint32_t> blah;
             feature_gids.insert(std::make_pair(feat, std::move(scratch2)));
-            feature_candidate_chunks.insert(std::make_pair(feat, std::move(blah)));
+            feature_candidate_chunks.insert(std::make_pair(feat,
+                                                           std::move(blah)));
         }
     }
 
@@ -446,7 +459,8 @@ int builder::process() {
     remaining_gids.subtract(gid_with_point);
 
     if (feature_gids.size() > 0) {
-        std::cerr << "Subsetting " << feature_gids.size() << " features separately: (";
+        std::cerr << "Subsetting " << feature_gids.size();
+        std::cerr << " features separately: (";
         printed = false;
         for (auto &a: feature_gids) {
             hb_set_del(t, a.first);
@@ -484,7 +498,7 @@ int builder::process() {
     // and any gid with a direct unicode encoding. These are the gids we
     // need to find a home for in some non-base chunk, or in the base if
     // there's no good place for it.
-    
+
     // Make initial vector of "mini-chunks"
     remaining_points.copy(unicodes_face);
     remaining_points.subtract(base.codepoints);
@@ -546,7 +560,7 @@ int builder::process() {
     //    are they substituted for other codepoints somewhere? If the latter,
     //    move those points to the base chunk and redo the plan.
     // 2) Which, if any, of the remaining_gids have a hard dependency on
-    //    one of the codepoints in the chunk? Those gids are candidates 
+    //    one of the codepoints in the chunk? Those gids are candidates
     //    for grouping with this chunk.
 
     t = input.set(HB_SUBSET_SETS_LAYOUT_FEATURE_TAG);
@@ -555,7 +569,8 @@ int builder::process() {
     idx = -1;
     for (auto &i: chunks) {
         idx++;
-        if (i.group == 0 || i.merged_to != -1 || i.codepoints.size() == 0)  // Skip the base chunk and merged chunks
+        if (i.group == 0 || i.merged_to != -1 || i.codepoints.size() == 0)
+            // Skip the base chunk and merged chunks
             continue;
         hb_set_set(t, unicodes_face.s);
         hb_set_subtract(t, i.codepoints.s);
@@ -568,7 +583,8 @@ int builder::process() {
         if (!scratch2.is_empty()) {
             gid = HB_SET_VALUE_INVALID;
             while (scratch2.next(gid)) {
-                std::cerr << "Second stage: moving gid " << gid << " to chunk 0" << std::endl;
+                std::cerr << "Second stage: moving gid " << gid;
+                std::cerr << " to chunk 0" << std::endl;
                 assert(i.gids.has(gid));
                 i.gids.del(gid);
                 chunks[0].gids.add(gid);
@@ -614,7 +630,8 @@ int builder::process() {
     v.clear();
 
     candidate_chunks.clear();
-    std::cerr << "Remaining gid count after assignment: " << remaining_gids.size() << std::endl;
+    std::cerr << "Remaining gid count after assignment: ";
+    std::cerr << remaining_gids.size() << std::endl;
 
     chunks[0].gids._union(remaining_gids);
 
@@ -653,7 +670,8 @@ int builder::process() {
             scratch1.clear();
             hb_map_keys(map, scratch1.s);
             for (auto &f: feature_gids) {
-                std::unordered_multimap<uint32_t, uint32_t> &fmmap = feature_candidate_chunks[f.first];
+                std::unordered_multimap<uint32_t, uint32_t> &fmmap =
+                                            feature_candidate_chunks[f.first];
                 if (idx == 0) {
                     scratch2.copy(scratch1);
                 } else {
@@ -705,7 +723,8 @@ int builder::process() {
         for (auto &ii: fchunks) {
             auto &bch = chunks.back();
             auto &i = ii.second;
-            if (bch.feat != i.feat || bch.size + i.size > conf.target_chunk_size) {
+            if (   bch.feat != i.feat
+                || bch.size + i.size > conf.target_chunk_size) {
                 if (i.gids.size() > 0)
                     chunks.push_back(std::move(i));
             } else
@@ -722,7 +741,8 @@ int builder::process() {
         gid = HB_SET_VALUE_INVALID;
         while(scratch1.next(gid)) {
             uint32_t size = gid_size(gid);
-            if (base.gids.size() > 0 && base.size + size > conf.target_chunk_size) {
+            if (   base.gids.size() > 0
+                && base.size + size > conf.target_chunk_size) {
                 chunks.push_back(std::move(base));
                 base.reset();
             }
@@ -736,7 +756,8 @@ int builder::process() {
     all_codepoints = hb_map_create();
     all_gids = hb_map_create();
 
-    std::cerr << std::endl << std::endl << "---- Chunk Report ----" << std::endl << std::endl;
+    std::cerr << std::endl << std::endl << "---- Chunk Report ----";
+    std::cerr << std::endl << std::endl;
     idx = -1;
     for (auto &i: chunks) {
         idx++;
@@ -817,15 +838,16 @@ int builder::process() {
         std::cerr << "Compiling and compressing chunk " << idx << std::endl;
         css.str("");
         css.clear();
-        c.compile(css, idx, table1, primaryOffset, primaryBlob, 
+        c.compile(css, idx, table1, primaryOffset, primaryBlob,
                   primaryRecs, table2, secondaryOffset, secondaryBlob,
                   secondaryRecs);
         std::string cs = css.str();
         encoded_size = BrotliEncoderMaxCompressedSize(cs.size());
         if (encode_buf.size() < encoded_size)
             encode_buf.resize(encoded_size);
-        if (!BrotliEncoderCompress(BROTLI_MAX_QUALITY, BROTLI_DEFAULT_WINDOW, BROTLI_MODE_FONT,
-                                   cs.size(), (const uint8_t *) cs.data(), &encoded_size,
+        if (!BrotliEncoderCompress(BROTLI_MAX_QUALITY, BROTLI_DEFAULT_WINDOW,
+                                   BROTLI_MODE_FONT, cs.size(),
+                                   (const uint8_t *) cs.data(), &encoded_size,
                                    encode_buf.data()))
             throw std::runtime_error("Could not compress chunk");
         std::ofstream cfile;
@@ -841,7 +863,6 @@ int builder::process() {
 
     set &c0g = chunks[0].gids;
 
-    ss.str("");
     ss.clear();
 
     hb_blob_t *newPrimaryBlob, *newSecondaryBlob = NULL, *newLocaBlob = NULL;
@@ -855,8 +876,10 @@ int builder::process() {
         ss.rdbuf()->pubsetbuf(nb, l);
         ss.seekp(cff_charstrings_offset + 3);
         uint32_t nboff = 1;
-        char *nbinsert = nb + cff_charstrings_offset + 3 + (glyph_count + 1) * 4;
-        const char *bbase = b + cff_charstrings_offset + 3 + (glyph_count + 1) * 4 - 1;
+        char *nbinsert = nb + cff_charstrings_offset + 3 +
+                         (glyph_count + 1) * 4;
+        const char *bbase = b + cff_charstrings_offset + 3 +
+                            (glyph_count + 1) * 4 - 1;
         for (uint32_t i = 0; i < glyph_count; i++) {
             const char *from = NULL;
             uint32_t froml = 0;
@@ -874,7 +897,8 @@ int builder::process() {
             nbinsert += froml;
         }
         writeObject(ss, nboff);
-        newPrimaryBlob = hb_blob_create(nb, nbinsert - nb, HB_MEMORY_MODE_READONLY, NULL, NULL);
+        newPrimaryBlob = hb_blob_create(nb, nbinsert - nb,
+                                        HB_MEMORY_MODE_READONLY, NULL, NULL);
     } else {
         unsigned int l;
         const char *b = hb_blob_get_data(primaryBlob.b, &l);
@@ -895,8 +919,10 @@ int builder::process() {
             writeObject(ss, (uint32_t) (ninsert - nglyf));
             ninsert += froml;
         }
-        newPrimaryBlob = hb_blob_create(nglyf, ninsert - nglyf, HB_MEMORY_MODE_READONLY, NULL, NULL);
-        newLocaBlob = hb_blob_create(nloca, glyph_count * 4, HB_MEMORY_MODE_READONLY, NULL, NULL);
+        newPrimaryBlob = hb_blob_create(nglyf, ninsert - nglyf,
+                                        HB_MEMORY_MODE_READONLY, NULL, NULL);
+        newLocaBlob = hb_blob_create(nloca, glyph_count * 4,
+                                     HB_MEMORY_MODE_READONLY, NULL, NULL);
     }
 
     tiftc.filesURI = conf.filesURI();
@@ -904,35 +930,66 @@ int builder::process() {
 
     hb_face_t *fbldr = hb_face_builder_create();
 
+    std::vector<uint32_t> tagOrder;
     css.str("");
     css.clear();
     tiftc.compile(css);
     std::string iftc_str = css.str();
-    hb_blob_t *iftcblob = hb_blob_create(iftc_str.data(), iftc_str.size(), HB_MEMORY_MODE_READONLY, NULL, NULL);
-    hb_face_builder_add_table(fbldr, tag("IFTC"), iftcblob);
+    hb_blob_t *iftcblob = hb_blob_create(iftc_str.data(), iftc_str.size(),
+                                         HB_MEMORY_MODE_READONLY, NULL, NULL);
+    hb_face_builder_add_table(fbldr, T_IFTC, iftcblob);
+    tagOrder.push_back(T_IFTC);
     hb_blob_destroy(iftcblob);
+
+    if (tables.has(T_CMAP)) {
+        hb_face_builder_add_table(fbldr, T_CMAP,
+                                  hb_face_reference_table(subface.f, T_CMAP));
+        tagOrder.push_back(T_CMAP);
+    } else {
+        std::cerr << "Warning: Input font has no cmap table!" << std::endl;
+    }
 
     uint32_t tbl = HB_SET_VALUE_INVALID;
     while (tables.next(tbl)) {
         if (tbl == tag("FFTM") || tbl == tag("DSIG"))
+           continue;
+        if (tbl == T_CMAP || tbl == T_CFF || tbl == T_CFF2 || tbl == T_GLYF ||
+            tbl == T_LOCA || tbl == T_GVAR)
             continue;
-        if (tbl == T_CFF || tbl == T_CFF2 || tbl == T_GLYF)
-            hb_face_builder_add_table(fbldr, tbl, newPrimaryBlob);
-        else if (tbl == T_LOCA)
-            hb_face_builder_add_table(fbldr, tbl, newLocaBlob);
-        else if (tbl == T_GVAR)
-            hb_face_builder_add_table(fbldr, tbl, newSecondaryBlob);
-        else
-            hb_face_builder_add_table(fbldr, tbl, hb_face_reference_table(subface.f, tbl));
+        hb_face_builder_add_table(fbldr, tbl,
+                                  hb_face_reference_table(subface.f, tbl));
+        tagOrder.push_back(tbl);
     }
+
+    if (is_cff) {
+        if (is_variable) {
+            hb_face_builder_add_table(fbldr, T_CFF2, newPrimaryBlob);
+            tagOrder.push_back(T_CFF2);
+        } else {
+            hb_face_builder_add_table(fbldr, T_CFF, newPrimaryBlob);
+            tagOrder.push_back(T_CFF);
+        }
+    } else {
+        if (is_variable) {
+            hb_face_builder_add_table(fbldr, T_GVAR, newSecondaryBlob);
+            tagOrder.push_back(T_GVAR);
+        }
+        hb_face_builder_add_table(fbldr, T_GLYF, newPrimaryBlob);
+        tagOrder.push_back(T_GLYF);
+        hb_face_builder_add_table(fbldr, T_LOCA, newLocaBlob);
+        tagOrder.push_back(T_LOCA);
+    }
+
+    tagOrder.push_back(HB_TAG_NONE);
+    hb_face_builder_sort_tables(fbldr, (hb_tag_t *)tagOrder.data());
 
     hb_blob_t *outblob = hb_face_reference_blob(fbldr);
     unsigned int size;
     const char *data = hb_blob_get_data(outblob, &size);
     css.clear();
     ss.rdbuf()->pubsetbuf((char *)data, size);
-    ss.seekp(0, std::ios::beg);
-    writeObject(ss, tag("IFTC"));
+    ss.seekp(0);
+    writeObject(ss, T_IFTC);
     std::ofstream myfile;
     myfile.open(conf.subsetPath(is_cff), std::ios::trunc | std::ios::binary);
     myfile.write(data, size);

@@ -69,7 +69,7 @@ struct config {
         std::string s("./");
         s += pathPrefix.filename();
         s += "/";
-        for (int i = chunk_hex_digits-1; i >= 2; i--) {
+        for (int i = chunk_hex_digits; i > 2; i--) {
             snprintf(buf, sizeof(buf), "$%d/", i);
             s += buf;
         }
@@ -113,7 +113,8 @@ struct config {
         for (int i = 0; i < 16; i++) {
             std::string l{key[i]};
             std::filesystem::path a = p / l;
-            if (depth > 0)
+            prepDir(a);
+            if (depth > 1)
                 makeChunkSubDirs(a, depth-1);
         }
     }

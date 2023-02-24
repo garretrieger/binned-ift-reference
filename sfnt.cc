@@ -9,7 +9,6 @@
 #include <iostream>
 
 #include "sfnt.h"
-#include "streamhelp.h"
 #include "tag.h"
 
 std::set<uint32_t> Table::known_tables = { tag("cmap"), tag("CFF "),
@@ -17,18 +16,13 @@ std::set<uint32_t> Table::known_tables = { tag("cmap"), tag("CFF "),
                                            tag("glyf"), tag("loca"),
                                            tag("gvar"), tag("head") };
 
-std::istream &sfnt::getTableStream(uint32_t tg, uint32_t &length) {
+bool sfnt::getTableStream(simplestream &s, uint32_t tg) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     auto i = directory.find(tg);
-    if (i == directory.end()) {
-        length = 0;
-        return nullss;
-    }
-    length = i->second.length;
-    auto [si, inserted] = streamMap.emplace(tg, std::istringstream());
-    if (inserted)
-        si->second.rdbuf()->pubsetbuf(buffer + i->second.offset, i->second.length);
-    return si->second;
+    if (i == directory.end())
+        return false;
+    s.rdbuf()->pubsetbuf(ss.bufinfo() + i->second.offset, i->second.length);
+    return true;
 }
 
 uint32_t sfnt::getTableOffset(uint32_t tg, uint32_t &length) {

@@ -4,12 +4,15 @@ constexpr uint32_t relOffsetsOffset = 20;
 
 void table_IFTC::writeChunkSet(std::ostream &os) {
     uint8_t u8 = 0;
-    for (int i = 0; i < chunkCount + 8; i++) {
-        if (i && i % 8 != 0) {
+    for (int i = 0; i < chunkCount; i++) {
+        if (i && i % 8 == 0) {
             writeObject(os, u8);
             u8 = 0;
         }
         u8 = (u8 << 1) + chunkSet[i] ? 1 : 0;
+    }
+    if (chunkCount % 8 != 0) {
+        writeObject(os, u8);
     }
 }
 
@@ -46,12 +49,12 @@ uint32_t table_IFTC::compile(std::ostream &os, uint32_t offset) {
     writeObject(os, (uint8_t) filesURI.length());
     for (auto c: filesURI)
         writeObject(os, c);
-    writeObject(os, (uint8_t) 0);
+    writeObject(os, (uint8_t) 0);  // Null terminator
     assert(rangeFileURI.length() < 256);
     writeObject(os, (uint8_t) rangeFileURI.length());
     for (auto c: rangeFileURI)
         writeObject(os, c);
-    writeObject(os, (uint8_t) 0);
+    writeObject(os, (uint8_t) 0);  // Null terminator
     gidMapTableOffset = ((uint32_t) os.tellp()) - offset;
     bool writing = false;
     for (uint32_t i = 0; i < gidMap.size(); i++) {
@@ -114,20 +117,26 @@ void table_IFTC::decompile(std::istream &is, uint32_t offset) {
     readObject(is, chunkOffsetTableOffset);
     readObject(is, featureMapTableOffset);
     uint8_t u8;
-    chunkSet.resize(chunkCount + 8);
-    for (int i=0; i < chunkCount/8 + 1; i++) {
+    chunkSet.resize(chunkCount);
+    uint32_t chunkBytes = chunkCount / 8;
+    if (chunkCount % 8 != 0)
+        chunkBytes += 1;
+    for (uint32_t i=0; i < chunkBytes; i++) {
         readObject(is, u8);
         for (int j = 0; j < 8; j++) {
+            if (i * 8 + j >= chunkCount)
+                break;
             chunkSet[i * 8 + j] = u8 & 1;
             u8 >>= 1;
         }
     }
-    filesURI.resize(readObject<uint8_t>(is));
+    readObject(is, u8);
+    filesURI.resize(u8);
     for (int i = 0; i < u8; i++)
         readObject(is, filesURI[i]);
     readObject<uint8_t>(is);  // Null terminator
     readObject(is, u8);
-    rangeFileURI.resize(readObject<uint8_t>(is));
+    rangeFileURI.resize(u8);
     for (int i = 0; i < u8; i++)
         readObject(is, rangeFileURI[i]);
     readObject<uint8_t>(is);  // Null terminator

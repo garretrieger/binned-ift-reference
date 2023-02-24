@@ -40,26 +40,25 @@ void config::load_ordered_points(YAML::Node n, std::vector<uint32_t> &v) {
 
 bool config::prepDir(std::filesystem::path &p, bool thrw) {
     std::string e;
-    bool r;
     if (std::filesystem::exists(p)) {
         if (!std::filesystem::is_directory(p)) {
             e = "Error: Path '";
             e += pathPrefix;
             e += "' exists but is not a directory";
             return false;
-        } else
+        } else {
             return true;
+        }
     }
     e = "Could not create directory '" ;
-    e += pathPrefix;
+    e += p;
     e += "'";
     if (thrw) {
-        r = std::filesystem::create_directory(p);
-        throw std::runtime_error(e);
+        if (!std::filesystem::create_directory(p))
+            throw std::runtime_error(e);
     } else {
         try {
-            r = std::filesystem::create_directory(p);
-            if (!r) {
+            if (!std::filesystem::create_directory(p)) {
                 std::cerr << e << std::endl;
                 return false;
             }

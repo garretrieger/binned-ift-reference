@@ -10,11 +10,11 @@
 
 #define DEFOUTDIR "subset_tmp"
 
-class builder {
+class chunker {
  public:
-    builder(config &c) : conf(c) {}
+    chunker(config &c) : conf(c) {}
     int process();
-    ~builder() {
+    ~chunker() {
         if (nominal_map)
             hb_map_destroy(nominal_map);
         if (all_codepoints)

@@ -1,8 +1,6 @@
 #include <cassert>
-
-#include <map>
 #include <iostream>
-#include <utility>
+#include <vector>
 
 #include "merger.h"
 #include "wrappers.h"
@@ -57,5 +55,4 @@ struct chunk {
                  uint32_t table2, uint32_t offset2,
                  blob &blob2, std::vector<glyphrec> &recs2,
                  uint32_t offset = 0);
-    static uint16_t addrecs(std::istream &is, uint32_t length, merger &m);
 };

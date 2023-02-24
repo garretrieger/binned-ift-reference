@@ -3,21 +3,21 @@
 #include <stdexcept>
 
 #include "config.h"
-#include "builder.h"
+#include "chunker.h"
 
 int main(int argc, char **argv) {
-    config c;
-    builder b(c);
+    config conf;
+    chunker ck(conf);
 
-    int r = c.setArgs(argc, argv);
+    int r = conf.setArgs(argc, argv);
     if (r != 0)
         return r;
 
-    if (c.noCatch()) {
-        r = b.process();
+    if (conf.noCatch()) {
+        r = ck.process();
     } else {
         try {
-            r = b.process();
+            r = ck.process();
         } catch (const std::exception &ex ) {
             r = 1;
             std::cerr << ex.what() << std::endl;
