@@ -69,9 +69,11 @@ void chunker::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
         uint32_t chid = hb_map_get(gid_chunk_map, gid);
         if (chid != HB_MAP_VALUE_INVALID) {
             auto &ech = chunks[chid];
-            std::cerr << "Found gid for codepoint " << codepoint;
-            std::cerr << " in earlier chunk " << chid << ", moving.";
-            std::cerr << std::endl;
+            if (conf.verbosity() > 2) {
+                std::cerr << "Found gid for codepoint " << codepoint;
+                std::cerr << " in earlier chunk " << chid << ", moving.";
+                std::cerr << std::endl;
+            }
             ech.codepoints.add(codepoint);
             continue;
         }
@@ -116,7 +118,8 @@ void chunker::process_overlaps(uint32_t gid, uint32_t chid,
 
     if (move) {
         // Move the gid and its codepoints into the base
-        std::cerr << "Moving gid " << gid << " to chunk 0" << std::endl;
+        if (conf.verbosity() > 2)
+            std::cerr << "Moving gid " << gid << " to chunk 0" << std::endl;
         assert(ch.gids.has(gid));
         ch.gids.del(gid);
         chunks[0].gids.add(gid);
@@ -131,8 +134,10 @@ void chunker::process_overlaps(uint32_t gid, uint32_t chid,
         for (auto nid: v) {
             auto &chv = current_chunk(nid);
             if (chid != nid) {
-                std::cerr << "Merging chunk " << nid << " into chunk ";
-                std::cerr << chid << std::endl;
+                if (conf.verbosity() > 2) {
+                    std::cerr << "Merging chunk " << nid << " into chunk ";
+                    std::cerr << chid << std::endl;
+                }
                 ch.merge(chv, true);
                 chv.merged_to = chid;
             }
@@ -196,7 +201,7 @@ void chunker::process_feature_candidates(uint32_t feat, set &gids,
 }
 
 
-int chunker::process() {
+int chunker::process(std::string &input_string) {
     uint32_t codepoint, gid, feat, last_gid;
     set scratch1, scratch2, remaining_gids, remaining_points;
     int idx;
@@ -218,8 +223,7 @@ int chunker::process() {
         feature_candidate_chunks;
     std::vector<uint32_t> v;
 
-    std::filesystem::path ip = conf.inputPath();
-    inblob.load(ip.c_str());
+    inblob.from_string(input_string, true);
     inface.create(inblob);
     inface.get_table_tags(tables);
 
@@ -232,26 +236,31 @@ int chunker::process() {
             throw std::runtime_error("Font has both CFF and glyf tables, "
                                      "exiting");
         is_cff = true;
-        std::cerr << "Processing CFF font" << std::endl;
+        if (conf.verbosity())
+            std::cerr << "Processing CFF font" << std::endl;
     } else if (tables.has(T_CFF2)) {
         if (tables.has(T_GLYF))
             throw std::runtime_error("Font has both CFF2 and glyf tables, "
                                      "exiting");
         is_cff = is_variable = true;
-        std::cerr << "Processing CFF2 font" << std::endl;
+        if (conf.verbosity())
+            std::cerr << "Processing CFF2 font" << std::endl;
     } else if (tables.has(T_GLYF)) {
         if (tables.has(T_GVAR)) {
             is_variable = true;
-            std::cerr << "Processing variable glyf font" << std::endl;
+            if (conf.verbosity())
+                std::cerr << "Processing variable glyf font" << std::endl;
         } else {
-            std::cerr << "Processing static glyf font" << std::endl;
+            if (conf.verbosity())
+                std::cerr << "Processing static glyf font" << std::endl;
         }
     } else
         throw std::runtime_error("No CFF, CFF2 or glyf table in font, "
                                  "exiting");
 
     glyph_count = inface.get_glyph_count();
-    std::cerr << "Initial glyph count: " << glyph_count << std::endl;
+    if (conf.verbosity() > 1)
+        std::cerr << "Initial glyph count: " << glyph_count << std::endl;
 
     // Initial subset clears out unused data and implements table
     // requirements.  We don't retain GIDs here
@@ -287,15 +296,19 @@ int chunker::process() {
     subfont.create(subface);
     glyph_count = subface.get_glyph_count();
 
-    std::cerr << "Preliminary subset glyph count: " << glyph_count;
-    std::cerr << std::endl;
+    if (conf.verbosity()) {
+        std::cerr << "Preliminary subset glyph count: " << glyph_count;
+        std::cerr << std::endl;
+    }
 
     // Read in glyph content locations
     if (is_cff) {
         cff_charstrings_offset = hb_font_get_cff_charstrings_offset(subfont.f);
         assert(cff_charstrings_offset != -1);
-        std::cerr << "CharStrings Offset: " << cff_charstrings_offset;
-        std::cerr << std::endl;
+        if (conf.verbosity() > 1) {
+            std::cerr << "CharStrings Offset: " << cff_charstrings_offset;
+            std::cerr << std::endl;
+        }
         if (is_variable)
             primaryBlob = hb_face_reference_table(subface.f, T_CFF2);
         else
@@ -393,8 +406,10 @@ int chunker::process() {
     while (hb_map_next(nominal_map, &idx, &codepoint, &gid))
         nominal_revmap.emplace(gid, codepoint);
 
-    std::cerr << "Unicodes defined in cmap: " << unicodes_face.size();
-    std::cerr << std::endl;
+    if (conf.verbosity() > 1) {
+        std::cerr << "Unicodes defined in cmap: " << unicodes_face.size();
+        std::cerr << std::endl;
+    }
 
     proface.create_preprocessed(subface);
 
@@ -459,19 +474,24 @@ int chunker::process() {
     remaining_gids.subtract(gid_with_point);
 
     if (feature_gids.size() > 0) {
-        std::cerr << "Subsetting " << feature_gids.size();
-        std::cerr << " features separately: (";
+        if (conf.verbosity()) {
+            std::cerr << "Subsetting " << feature_gids.size();
+            std::cerr << " features separately: (";
+        }
         printed = false;
         for (auto &a: feature_gids) {
             hb_set_del(t, a.first);
-            if (printed)
-                std::cerr << ", ";
-            ptag(std::cerr, a.first);
-            printed = true;
-            std::cerr << " (" << a.second.size() << ")";
+            if (conf.verbosity()) {
+                if (printed)
+                    std::cerr << ", ";
+                ptag(std::cerr, a.first);
+                printed = true;
+                std::cerr << " (" << a.second.size() << ")";
+            }
             remaining_gids.subtract(a.second);
         }
-        std::cerr << ")" << std::endl;
+        if (conf.verbosity())
+            std::cerr << ")" << std::endl;
     }
 
     base.codepoints.copy(conf.base_points);
@@ -517,7 +537,10 @@ int chunker::process() {
     wg.clear();
     wrap_rp = nullptr;
 
-    std::cerr << "Starting mini-chunk count: " << chunks.size() << std::endl;
+    if (conf.verbosity() > 1) {
+        std::cerr << "Starting mini-chunk count: " << chunks.size();
+        std::cerr << std::endl;
+    }
 
     // Try to reorganize the chunks so that each cmapped gid "belongs to"
     // only one chunk. We have two options: move a gid with its codepoints
@@ -583,8 +606,10 @@ int chunker::process() {
         if (!scratch2.is_empty()) {
             gid = HB_SET_VALUE_INVALID;
             while (scratch2.next(gid)) {
-                std::cerr << "Second stage: moving gid " << gid;
-                std::cerr << " to chunk 0" << std::endl;
+                if (conf.verbosity() > 2) {
+                    std::cerr << "Second stage: moving gid " << gid;
+                    std::cerr << " to chunk 0" << std::endl;
+                }
                 assert(i.gids.has(gid));
                 i.gids.del(gid);
                 chunks[0].gids.add(gid);
@@ -611,7 +636,6 @@ int chunker::process() {
         scratch2.intersect(remaining_gids);
         gid = HB_SET_VALUE_INVALID;
         while(scratch2.next(gid)) {
-            // std::cerr << gid << std::endl;
             candidate_chunks.emplace(gid, idx);
         }
         hb_subset_plan_destroy(plan);
@@ -630,8 +654,10 @@ int chunker::process() {
     v.clear();
 
     candidate_chunks.clear();
-    std::cerr << "Remaining gid count after assignment: ";
-    std::cerr << remaining_gids.size() << std::endl;
+    if (conf.verbosity() > 1) {
+        std::cerr << "Remaining gid count after assignment: ";
+        std::cerr << remaining_gids.size() << std::endl;
+    }
 
     chunks[0].gids._union(remaining_gids);
 
@@ -655,10 +681,12 @@ int chunker::process() {
     t = input.unicode_set();
     idx = -1;
     if (feature_gids.size() > 0) {
-        std::cerr << "Processing subsetted features" << std::endl;
+        if (conf.verbosity())
+            std::cerr << "Processing subsetted features" << std::endl;
         for (auto &i: chunks) {
             idx++;
-            std::cerr << "For non-feature chunk " << idx << std::endl;
+            if (conf.verbosity() > 2)
+                std::cerr << "For non-feature chunk " << idx << std::endl;
             if (idx == 0) {
                 hb_set_set(t, i.codepoints.s);
             } else {
@@ -710,9 +738,11 @@ int chunker::process() {
         v.clear();
 
         if (gids.size() > 0) {
-            std::cerr << f.second.size() << " gids remaining in feature ";
-            ptag(std::cerr, f.first);
-            std::cerr << std::endl;
+            if (conf.verbosity() > 1) {
+                std::cerr << f.second.size() << " gids remaining in feature ";
+                ptag(std::cerr, f.first);
+                std::cerr << std::endl;
+            }
             gid = HB_SET_VALUE_INVALID;
             while (gids.next(gid)) {
                 fchunks[0].gids.add(gid);
@@ -756,20 +786,24 @@ int chunker::process() {
     all_codepoints = hb_map_create();
     all_gids = hb_map_create();
 
-    std::cerr << std::endl << std::endl << "---- Chunk Report ----";
-    std::cerr << std::endl << std::endl;
+    if (conf.verbosity() > 1) {
+        std::cerr << std::endl << std::endl << "---- Chunk Report ----";
+        std::cerr << std::endl << std::endl;
+    }
     idx = -1;
     for (auto &i: chunks) {
         idx++;
-        std::cerr << "Chunk " << idx << ": ";
-        if (i.feat) {
-            std::cerr << "feature ";
-            ptag(std::cerr, i.feat);
-            std::cerr << ", ";
+        if (conf.verbosity() > 1) {
+            std::cerr << "Chunk " << idx << ": ";
+            if (i.feat) {
+                std::cerr << "feature ";
+                ptag(std::cerr, i.feat);
+                std::cerr << ", ";
+            }
+            std::cerr << i.codepoints.size() << " codepoints, ";
+            std::cerr << i.gids.size() << " gids, ";
+            std::cerr << i.size << " bytes" << std::endl;
         }
-        std::cerr << i.codepoints.size() << " codepoints, ";
-        std::cerr << i.gids.size() << " gids, ";
-        std::cerr << i.size << " bytes" << std::endl;
         codepoint = HB_SET_VALUE_INVALID;
         while (i.codepoints.next(codepoint)) {
             assert(!hb_map_has(all_codepoints, codepoint));
@@ -835,7 +869,10 @@ int chunker::process() {
         idx++;
         if (idx == 0)
             continue;
-        std::cerr << "Compiling and compressing chunk " << idx << std::endl;
+        if (conf.verbosity() > 2) {
+            std::cerr << "Compiling and compressing chunk " << idx;
+            std::cerr << " to file " << conf.chunkPath(idx) << std::endl;
+        }
         css.str("");
         css.clear();
         c.compile(css, idx, table1, primaryOffset, primaryBlob,
@@ -991,7 +1028,11 @@ int chunker::process() {
     ss.seekp(0);
     writeObject(ss, T_IFTC);
     std::ofstream myfile;
-    myfile.open(conf.subsetPath(is_cff), std::ios::trunc | std::ios::binary);
+    auto sp = conf.subsetPath(is_cff);
+    std::cerr << "Writing uncompressed iftc base font file ";
+    std::cerr << sp << std::endl;
+
+    myfile.open(sp, std::ios::trunc | std::ios::binary);
     myfile.write(data, size);
     myfile.close();
 
@@ -1002,8 +1043,10 @@ int chunker::process() {
     if (!woff2::ConvertTTFToWOFF2((uint8_t *)data, size, (uint8_t *)woff2_out.data(), &woff2_size, params))
         throw std::runtime_error("Could not WOFF2 compress font");
     woff2_out.resize(woff2_size);
-
-    myfile.open(conf.woff2Path(), std::ios::trunc | std::ios::binary);
+    sp = conf.woff2Path();
+    std::cerr << "Writing WOFF2 compressed iftc base font file ";
+    std::cerr << sp << std::endl;
+    myfile.open(sp, std::ios::trunc | std::ios::binary);
     myfile.write(woff2_out.data(), woff2_size);
     myfile.close();
 

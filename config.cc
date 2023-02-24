@@ -63,29 +63,15 @@ bool config::prepDir(std::filesystem::path &p, bool thrw) {
                 return false;
             }
         } catch (const std::exception &ex) {
-            std::cerr << e << ex.what() << std::endl;
+            std::cerr << ex.what() << std::endl;
             return false;
         }
     }
     return true;
 }
 
-int config::setArgs(int argc, char **argv) {
-    if (argc < 2) {
-        std::cerr << "Must supply font name as argument" << std::endl;
-        return 1;
-    }
-
-    auto yc = YAML::LoadFile(configFilePath);
-    _inputPath = argv[1];
-
-    pathPrefix = _inputPath;
-    pathPrefix.replace_extension();
-    pathPrefix += "_iftc";
-
-    prepDir(pathPrefix, false);
-
-
+int config::load(std::string p, bool is_default) {
+    auto yc = YAML::LoadFile(p.c_str());
 
     load_points(yc["base_points"], base_points);
     used_points.copy(base_points);
@@ -110,7 +96,7 @@ int config::setArgs(int argc, char **argv) {
     if (targ_chunk_sz.IsScalar())
         target_chunk_size = targ_chunk_sz.as<uint32_t>();
 
-    if (!printConfig())
+    if (verbosity() <= 2)
         return 0;
 
     std::cerr << "Config:" << std::endl;

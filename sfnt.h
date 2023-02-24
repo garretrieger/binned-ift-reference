@@ -12,6 +12,8 @@
 
 #include "streamhelp.h"
 
+#pragma once
+
 struct Table {
     Table() {}
     Table(const Table &t) : checksum(t.checksum), offset(t.offset),

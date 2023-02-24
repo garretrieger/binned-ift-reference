@@ -6,7 +6,7 @@
 #include "tag.h"
 #include "table_IFTC.h"
 
-bool iftc_sanitize(std::string &s, bool verbose) {
+bool iftc_sanitize(std::string &s, config &conf) {
     sfnt sf(s);
     simplestream ss;
 
@@ -31,7 +31,7 @@ bool iftc_sanitize(std::string &s, bool verbose) {
         return false;
     }
 
-    if (verbose)
+    if (conf.verbosity())
         tiftc.dump(std::cerr);
 
     bool is_cff = false, is_variable = false;

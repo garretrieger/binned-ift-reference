@@ -62,14 +62,24 @@ struct blob {
     blob() : b(NULL) {}
     blob(hb_blob_t *bl) { b = bl; }
     void operator = (hb_blob_t *bl) {
-        if (b) hb_blob_destroy(b);
+        destroy();
         b = bl;
         hb_blob_reference(b);
     }
-    ~blob() { if (b) hb_blob_destroy(b); }
+    ~blob() { destroy(); }
     void load(const char *fname) {
+        destroy();
         b = hb_blob_create_from_file_or_fail(fname);
     }
+    void from_string(std::string &s, bool read_only = false) {
+        destroy();
+        b = hb_blob_create(s.data(), s.size(),
+                           read_only ? HB_MEMORY_MODE_READONLY
+                                     : HB_MEMORY_MODE_WRITABLE,
+                           NULL, NULL);
+    }
+private:
+    void destroy() { if (b) hb_blob_destroy(b); }
 };
 
 struct face {

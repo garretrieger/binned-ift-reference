@@ -38,6 +38,7 @@ struct set_wrapper : group_wrapper {
 typedef std::vector<std::unique_ptr<group_wrapper>> wrapped_groups;
 
 struct config {
+    uint8_t _verbosity = 0;
     set base_points, used_points;
     std::vector<std::vector<uint32_t>> ordered_point_groups;
     std::vector<set> point_groups;
@@ -47,8 +48,6 @@ struct config {
     uint8_t chunk_dir_levels = 0;
     std::string rangeFilename = "rangefile";
     std::filesystem::path _inputPath, pathPrefix;
-    std::filesystem::path configFilePath = "config.yaml";
-    std::filesystem::path path_prefix;
     std::filesystem::path inputPath() { return _inputPath; }
     std::filesystem::path rangePath() { return pathPrefix / rangeFilename; }
     std::filesystem::path chunkPath(uint16_t idx) {
@@ -64,6 +63,8 @@ struct config {
         r += ".br";
         return r;
     }
+    void increaseVerbosity() { if (_verbosity < 3) _verbosity++; }
+    uint8_t verbosity() { return _verbosity; }
     std::string filesURI() { 
         char buf[10];
         std::string s("./");
@@ -101,7 +102,12 @@ struct config {
         return r;
     }
 
-    int setArgs(int argc, char **argv);
+    void setPathPrefix(std::filesystem::path &p) {
+        pathPrefix = p;
+        prepDir(pathPrefix, false);
+    }
+
+    int load(std::string p, bool is_default);
 
     void makeChunkDirs() {
         if (chunk_hex_digits > 2)

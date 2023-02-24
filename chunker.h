@@ -13,7 +13,7 @@
 class chunker {
  public:
     chunker(config &c) : conf(c) {}
-    int process();
+    int process(std::string &input_string);
     ~chunker() {
         if (nominal_map)
             hb_map_destroy(nominal_map);
