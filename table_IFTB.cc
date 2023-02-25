@@ -1,8 +1,8 @@
-#include "table_IFTC.h"
+#include "table_IFTB.h"
 
-constexpr uint32_t relOffsetsOffset = 20;
+#include <iomanip>
 
-void table_IFTC::writeChunkSet(std::ostream &os) {
+void table_IFTB::writeChunkSet(std::ostream &os) {
     uint8_t u8 = 0;
     for (int i = 0; i < chunkCount; i++) {
         if (i && i % 8 == 0) {
@@ -16,7 +16,7 @@ void table_IFTC::writeChunkSet(std::ostream &os) {
     }
 }
 
-void table_IFTC::dumpChunkSet(std::ostream &os) {
+void table_IFTB::dumpChunkSet(std::ostream &os) {
     os << "chunkSet indexes: ";
     bool printed = false;
     for (uint32_t i = 0; i < chunkCount; i++) {
@@ -30,17 +30,22 @@ void table_IFTC::dumpChunkSet(std::ostream &os) {
     os << std::endl;
 }
             
-uint32_t table_IFTC::compile(std::ostream &os, uint32_t offset) {
+uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
     uint32_t gidMapTableOffset = 0, chunkOffsetTableOffset = 0;
-    uint32_t featureMapTableOffset = 0;
+    uint32_t featureMapTableOffset = 0, relOffsetsOffset = 0;
     os.seekp(offset);
     writeObject(os, majorVersion);
     writeObject(os, minorVersion);
-    writeObject(os, (uint16_t) 0);  // reserved
+    writeObject(os, (uint32_t) 0);  // reserved
+    writeObject(os, id0);
+    writeObject(os, id1);
+    writeObject(os, id2);
+    writeObject(os, id3);
     writeObject(os, flags);
     writeObject(os, chunkCount);
     writeObject(os, (uint32_t) gidMap.size());
     writeObject(os, CFFCharStringsOffset);
+    relOffsetsOffset = (uint32_t) os.tellp();
     writeObject(os, gidMapTableOffset);
     writeObject(os, chunkOffsetTableOffset);
     writeObject(os, featureMapTableOffset);
@@ -96,7 +101,122 @@ uint32_t table_IFTC::compile(std::ostream &os, uint32_t offset) {
     return l;
 }
 
-void table_IFTC::decompile(std::istream &is, uint32_t offset) {
+struct type4seg {
+    type4seg() {}
+    type4seg(uint16_t ec) : endCode(ec) {}
+    uint16_t endCode {0}, startCode {0}, idRangeOffset {0};
+    int16_t idDelta {0};
+};
+
+bool table_IFTB::addcmap(std::istream &is, uint32_t offset,
+                         bool keepGIDMap) {
+    uint16_t numTables, platformID, encodingID;
+    uint32_t subtableOffset, candidateOffset = 0;
+    is.seekg(offset);
+    readObject<uint16_t>(is);  // version
+    readObject(is, numTables);
+    for (int i = 0; i < numTables; i++) {
+        readObject(is, platformID);
+        readObject(is, encodingID);
+        readObject(is, subtableOffset);
+        if (   (platformID == 0 && encodingID == 4)
+            || (platformID == 3 && encodingID == 10)) {
+            candidateOffset = subtableOffset;
+            break;
+        }
+        if (   (platformID == 0 && encodingID == 3)
+            || (platformID == 3 && encodingID == 1)) {
+            if (candidateOffset == 0)
+                candidateOffset = subtableOffset;
+        }
+    }
+    if (candidateOffset == 0) {
+        std::cerr << "No appropriate cmap subtable" << std::endl;
+        return false;
+    }
+    is.seekg(candidateOffset);
+    uint16_t format;
+    readObject(is, format);
+    if (format == 4) {
+        uint16_t length, segCount;
+        std::vector<type4seg> segs;
+        readObject(is, length);
+        readObject<uint16_t>(is);  // language
+        readObject(is, segCount);  // segCountX2
+        segCount /= 2;
+        readObject<uint16_t>(is);  // searchRange
+        readObject<uint16_t>(is);  // entrySelector
+        readObject<uint16_t>(is);  // rangeShift
+        for (uint32_t i = 0; i < segCount; i++)
+            segs.emplace_back(readObject<uint16_t>(is));
+        readObject<uint16_t>(is);  // reservedPad
+        for (uint32_t i = 0; i < segCount; i++)
+            readObject(is, segs[i].startCode);
+        for (uint32_t i = 0; i < segCount; i++)
+            readObject(is, segs[i].idDelta);
+        for (uint32_t i = 0; i < segCount; i++)
+            readObject(is, segs[i].idRangeOffset);
+        uint16_t arraySize = length - is.tellg();
+        std::vector<uint16_t> glyphIDArray;
+        for (int i = 0; i < arraySize; i++)
+            glyphIDArray.push_back(readObject<uint16_t>(is));
+        for (auto &s: segs) {
+            if (s.startCode > s.endCode) {
+                std::cerr << "cmap format 4 segment codes out of order";
+                std::cerr << std::endl;
+                continue;
+            }
+            for (uint16_t c = s.startCode; c <= s.endCode; c++) {
+                uint16_t gid;
+                if (s.idRangeOffset != 0)
+                    gid = glyphIDArray[s.idRangeOffset + (c - s.startCode)];
+                else
+                    gid = s.idDelta + (c - s.startCode);
+                if (gid >= gidMap.size()) {
+                    std::cerr << "cmap format 4 bad gid value";
+                    std::cerr << std::endl;
+                    break;
+                }
+                uniMap.emplace(c, gidMap[gid]);
+            }
+        }
+    } else if (format == 12) {
+        uint32_t length, numGroups;
+        readObject<uint16_t>(is);  // reserved
+        readObject(is, length);
+        readObject<uint32_t>(is);  // language
+        readObject(is, numGroups);
+        for (uint32_t i = 0; i < numGroups; i++) {
+            uint32_t startCharCode, endCharCode, startGlyphID;
+            readObject(is, startCharCode);
+            readObject(is, endCharCode);
+            readObject(is, startGlyphID);
+            if (startCharCode > endCharCode) {
+                std::cerr << "cmap format 12 char codes out of order";
+                std::cerr << std::endl;
+                continue;
+            }
+            for (uint32_t c = startCharCode; c <= endCharCode; c++) {
+                uint16_t gid = startGlyphID + c - startCharCode;
+                if (gid >= gidMap.size()) {
+                    std::cerr << "cmap format 12 bad gid value";
+                    std::cerr << std::endl;
+                    break;
+                }
+                uniMap.emplace(c, gidMap[gid]);
+            }
+        }
+    } else {
+        std::cerr << "Error: Chosen cmap subtable has mis-matching format ";
+        std::cerr << format << std::endl;
+        return false;
+    }
+    if (!keepGIDMap)
+        gidMap.clear();
+    return true;
+}
+
+void table_IFTB::decompile(std::istream &is, uint32_t offset) {
     uint32_t gidMapTableOffset, chunkOffsetTableOffset;
     uint32_t featureMapTableOffset;
     uint32_t gidCount;
@@ -104,11 +224,15 @@ void table_IFTC::decompile(std::istream &is, uint32_t offset) {
     is.seekg(offset);
     readObject(is, majorVersion);
     if (majorVersion != 0)
-        throw std::runtime_error("IFTC table majorVersion != 0, will not read");
+        throw std::runtime_error("IFTB table majorVersion != 0, will not read");
     readObject(is, minorVersion);
     if (minorVersion != 1)
-        throw std::runtime_error("IFTC table minorVersion != 1, will not read");
-    readObject<uint16_t>(is);  // reserved
+        throw std::runtime_error("IFTB table minorVersion != 1, will not read");
+    readObject<uint32_t>(is);  // reserved
+    readObject(is, id0);
+    readObject(is, id1);
+    readObject(is, id2);
+    readObject(is, id3);
     readObject(is, flags);
     readObject(is, chunkCount);
     readObject(is, gidCount);
@@ -177,9 +301,14 @@ void table_IFTC::decompile(std::istream &is, uint32_t offset) {
     }
 }
 
-void table_IFTC::dump(std::ostream &os, bool full) {
+void table_IFTB::dump(std::ostream &os, bool full) {
     os << "majorVersion: " << majorVersion << std::endl;
     os << "minorVersion: " << minorVersion << std::endl;
+    char c = os.fill();
+    std::streamsize w = os.width();
+    os << "ID: " << std::setfill('0') << std::setw(8) << std::right;
+    os << std::hex << id0 << " " << id1 << " " << id2 << " " << id3;
+    os << std::dec << std::setfill(c) << std::setw(w) << std::endl;
     os << "chunkCount: " << chunkCount << std::endl;
     os << "gidCount: " << gidMap.size() << std::endl;
     dumpChunkSet(os);

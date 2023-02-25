@@ -1,26 +1,34 @@
 
 #include <cassert>
+#include <cstring>
 #include <vector>
+
+#include <brotli/decode.h>
 
 #include "streamhelp.h"
 #include "tag.h"
 #include "unchunk.h"
 
-uint16_t chunk_addrecs(std::istream &is, merger &m) {
-    uint32_t i32, glyphCount, table1, table2 = 0, offset, lastOffset = 0;
-    uint16_t i16, idx;
+uint16_t chunkAddRecs(std::istream &is, merger &m) {
+    uint32_t i32, glyphCount, table1, table2 = 0, idx;
+    uint32_t length, offset, lastOffset = 0;
+    uint16_t i16;
     uint8_t i8, tableCount;
     std::vector<uint16_t> gids;
     glyphrec gr;
 
-    readObject(is, i16);  // Major version
-    if (i16 != 0)
-        throw std::runtime_error("Unrecognized chunk major version");
-    readObject(is, i16);  // Minor version
-    if (i16 != 1)
-        throw std::runtime_error("Unrecognized chunk minor version");
-    readObject(is, i32);  // Checksum (unused)
+    readObject(is, i32);
+    if (i32 != tag("TIFC"))
+        throw std::runtime_error("Initial bytes of chunk must be TIFC");
+    readObject(is, i32);
+    if (i32 != 0)
+        throw std::runtime_error("Reserved bytes in chunk must be 0");
+    readObject(is, i32);  // id0
+    readObject(is, i32);  // id1
+    readObject(is, i32);  // id2
+    readObject(is, i32);  // id3
     readObject(is, idx);  // Chunk index;
+    readObject(is, length);
     readObject(is, glyphCount);
     readObject(is, tableCount);
     if (!(tableCount == 1 || tableCount == 2))
@@ -51,22 +59,41 @@ uint16_t chunk_addrecs(std::istream &is, merger &m) {
     return idx;
 }
 
-void dump_chunk(std::ostream &os, std::istream &is) {
-    uint32_t glyphCount, table1, table2 = 0, offset, lastOffset = 0;
-    uint16_t idx;
+void dumpChunk(std::ostream &os, std::istream &is) {
+    uint32_t i32, glyphCount, table1, table2 = 0, idx;
+    uint32_t length, offset, lastOffset = 0;
     uint8_t tableCount;
     std::vector<uint16_t> gids;
     glyphrec gr;
 
-    std::cerr << "Major version: " << readObject<uint16_t>(is) << std::endl;
-    std::cerr << "Minor version: " << readObject<uint16_t>(is) << std::endl;
-    std::cerr << "Checksum (unused): " << readObject<uint32_t>(is) << std::endl;
+    readObject(is, i32);
+    if (i32 != tag("IFTC")) {
+        std::cerr << "Unrecognized chunk type '";
+        ptag(std::cerr, i32);
+        std::cerr << "': can't display contents" << std::endl;
+        return;
+    }
+    readObject(is, i32);
+    if (i32 != 0) {
+        std::cerr << "Reserved bytes in chunk must be 0: ";
+        std::cerr << "can't display contents" << std::endl;
+    }
+    char c = os.fill();
+    std::streamsize w = os.width();
+    os << "ID: " << std::setfill('0') << std::setw(8) << std::right;
+    os << std::hex << readObject<uint32_t>(is) << " ";
+    os << readObject<uint32_t>(is) << " ";
+    os << readObject<uint32_t>(is) << " ";
+    os << readObject<uint32_t>(is) << std::dec << std::setfill(c);
+    os << std::setw(w) << std::endl;
     readObject(is, idx);
     std::cerr << "Chunk index: " << idx << std::endl;
+    readObject(is, length);
+    std::cerr << "Uncompressed length: " << length << std::endl;
     readObject(is, glyphCount);
     std::cerr << "Count of included glyphs: " << glyphCount << std::endl;
     readObject(is, tableCount);
-    std::cerr << "Table count (1 or 2): " << tableCount << std::endl;
+    std::cerr << "Table count (1 or 2): " << (int) tableCount << std::endl;
     std::cerr << "Gid list: ";
     for (int i = 0; i < glyphCount; i++) {
         if (i != 0)
@@ -106,3 +133,57 @@ void dump_chunk(std::ostream &os, std::istream &is) {
         std::cerr << std::endl;
     }
 }
+
+std::filesystem::path getChunkPath(std::filesystem::path &bp,
+                                   table_IFTB &tiftb, uint16_t idx) {
+    char buf[10];
+    uint8_t digit;
+    size_t pos = 0, lastPos = 0;
+    snprintf(buf, sizeof(buf), "%08x", (int) idx);
+
+    std::filesystem::path t;
+    std::string &fURI = tiftb.filesURI;
+    while ((pos = fURI.find('$', pos)) != std::string::npos) {
+        t += fURI.substr(lastPos, pos-lastPos);
+        digit = (uint8_t) fURI[pos+1] - 48;
+        if (digit > 8 || digit <= 0)
+            throw std::runtime_error("invalid filesURI string in IFTB table");
+        t += buf[8 - digit];
+        lastPos = pos = pos + 2;
+    }
+    t += fURI.substr(lastPos);
+    return t;
+}
+
+std::filesystem::path getRangePath(std::filesystem::path &bp,
+                                   table_IFTB &tiftb) {
+    std::filesystem::path t(tiftb.rangeFileURI);
+    return t;
+}
+
+std::string decodeChunk(const std::string &s) {
+    uint32_t l;
+
+    std::istringstream ss(s);
+    ss.seekg(28);  // length offset
+    readObject(ss, l);
+
+    std::string r(l, 0);
+    memcpy(r.data(), s.data(), 32);
+    size_t decoded_size = l - 32;
+    auto ok = BrotliDecoderDecompress(s.size(), (uint8_t *) s.data() + 32,
+                                      &decoded_size,
+                                      (uint8_t *) r.data() + 32);
+    if (ok != BROTLI_DECODER_RESULT_SUCCESS) {
+        if (decoded_size != l - 32)
+            throw std::runtime_error("Error: Wrong length encoded in chunk");
+        else
+            throw std::runtime_error("Error: Could not decode IFTB chunk");
+    }
+    if (decoded_size != l - 32)
+        throw std::runtime_error("Error: Wrong length encoded in chunk");
+
+    r[3] = 'C';
+    return r;
+}
+

@@ -4,9 +4,9 @@
 #include "sanitize.h"
 #include "sfnt.h"
 #include "tag.h"
-#include "table_IFTC.h"
+#include "table_IFTB.h"
 
-bool iftc_sanitize(std::string &s, config &conf) {
+bool iftb_sanitize(std::string &s, config &conf) {
     sfnt sf(s);
     simplestream ss;
 
@@ -17,22 +17,22 @@ bool iftc_sanitize(std::string &s, config &conf) {
         return false;
     }
 
-    if (!sf.getTableStream(ss, tag("IFTC"))) {
-        std::cerr << "Error: No IFTC table in font file" << std::endl;
+    if (!sf.getTableStream(ss, T_IFTB)) {
+        std::cerr << "Error: No IFTB table in font file" << std::endl;
         return false;
     }
 
-    table_IFTC tiftc;
+    table_IFTB tiftb;
     
     try {
-        tiftc.decompile(ss);
+        tiftb.decompile(ss);
     } catch (const std::runtime_error &ex) {
-        std::cerr << "Error parsing IFTC table: " << ex.what() << std::endl;
+        std::cerr << "Error parsing IFTB table: " << ex.what() << std::endl;
         return false;
     }
 
     if (conf.verbosity())
-        tiftc.dump(std::cerr);
+        tiftb.dump(std::cerr);
 
     bool is_cff = false, is_variable = false;
     // Determine font type

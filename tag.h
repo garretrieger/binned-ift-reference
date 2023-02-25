@@ -14,7 +14,8 @@ constexpr uint32_t tag(const char *s) {
 #define T_LOCA tag("loca")
 #define T_GVAR tag("GVAR")
 #define T_CMAP tag("cmap")
-#define T_IFTC tag("IFTC")
+#define T_IFTB tag("IFTB")
+#define T_HEAD tag("head")
 
 inline void ptag(std::ostream &out, uint32_t tag) {
     char o;

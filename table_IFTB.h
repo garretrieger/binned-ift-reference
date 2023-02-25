@@ -18,8 +18,9 @@ struct FeatureMap {
     std::vector<std::pair<uint16_t, uint16_t>> ranges;
 };
 
-struct table_IFTC {
+struct table_IFTB {
     uint16_t majorVersion {0}, minorVersion {1}, flags {0};
+    uint32_t id0, id1, id2, id3;
     uint32_t CFFCharStringsOffset {0};
     uint32_t chunkCount {0};
     std::vector<bool> chunkSet;
@@ -27,6 +28,8 @@ struct table_IFTC {
     std::unordered_map<uint32_t, FeatureMap> featureMap;
     std::vector<uint32_t> chunkOffsets;
     std::string filesURI, rangeFileURI;
+    std::unordered_map<uint32_t, uint16_t> uniMap;
+
     void dumpChunkSet(std::ostream &os);
     void writeChunkSet(std::ostream &os);
     void setChunkCount(uint32_t cc) {
@@ -54,5 +57,7 @@ struct table_IFTC {
     }
     unsigned int compile(std::ostream &o, uint32_t offset = 0);
     void decompile(std::istream &i, uint32_t offset = 0);
+    bool addcmap(std::istream &i, uint32_t offset = 0,
+                 bool keepGIDmap = false);
     void dump(std::ostream &o, bool full = false);
 };

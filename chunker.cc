@@ -1,17 +1,18 @@
 
+#include <ctime>
 #include <cstring>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 
-#include <brotli/encode.h>
 #include <woff2/encode.h>
 
 #include "chunker.h"
 #include "tag.h"
 #include "streamhelp.h"
-#include "table_IFTC.h"
+#include "table_IFTB.h"
 
 std::unordered_set<uint32_t> default_features = { tag("abvm"), tag("blwm"),
                                                   tag("ccmp"), tag("locl"),
@@ -268,7 +269,7 @@ int chunker::process(std::string &input_string) {
     flags |= HB_SUBSET_FLAGS_GLYPH_NAMES
              | HB_SUBSET_FLAGS_NOTDEF_OUTLINE
              | HB_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
-             | HB_SUBSET_FLAGS_IFTC_REQUIREMENTS
+             | HB_SUBSET_FLAGS_IFTB_REQUIREMENTS
              ;
     if (conf.desubroutinize())
         flags |= HB_SUBSET_FLAGS_DESUBROUTINIZE;
@@ -330,7 +331,7 @@ int chunker::process(std::string &input_string) {
         primaryOffset = ((uint32_t) sis.tellg()) - 1;
     } else {
         {
-            blob headBlob = hb_face_reference_table(subface.f, tag("head"));
+            blob headBlob = hb_face_reference_table(subface.f, T_HEAD);
             unsigned int hl;
             uint16_t tt;
             const char *hb = hb_blob_get_data(headBlob.b, &hl);
@@ -824,12 +825,18 @@ int chunker::process(std::string &input_string) {
     hb_map_keys(all_gids, scratch2.s);
     assert(scratch1 == scratch2);
 
-    table_IFTC tiftc;
-    tiftc.CFFCharStringsOffset = cff_charstrings_offset;
-    tiftc.setChunkCount(chunks.size());
-    tiftc.chunkSet[0] = true;
+    srand(time(NULL));
+
+    table_IFTB tiftb;
+    tiftb.id0 = rand();
+    tiftb.id1 = rand();
+    tiftb.id2 = rand();
+    tiftb.id3 = rand();
+    tiftb.CFFCharStringsOffset = cff_charstrings_offset;
+    tiftb.setChunkCount(chunks.size());
+    tiftb.chunkSet[0] = true;
     for (uint32_t i = 0; i < glyph_count; i++)
-        tiftc.gidMap.push_back(hb_map_get(all_gids, i));
+        tiftb.gidMap.push_back(hb_map_get(all_gids, i));
 
     uint32_t curr_feat = 0;
     FeatureMap fm;
@@ -837,7 +844,7 @@ int chunker::process(std::string &input_string) {
         chunk &c = chunks[i];
         if (curr_feat != c.feat) {
             if (curr_feat != 0)
-                tiftc.featureMap.emplace(curr_feat, std::move(fm));
+                tiftb.featureMap.emplace(curr_feat, std::move(fm));
             curr_feat = c.feat;
             fm.startIndex = i;
         }
@@ -845,7 +852,7 @@ int chunker::process(std::string &input_string) {
         fm.ranges.push_back(range);
     }
     if (curr_feat != 0)
-        tiftc.featureMap.emplace(curr_feat, std::move(fm));
+        tiftb.featureMap.emplace(curr_feat, std::move(fm));
 
     conf.setNumChunks(chunks.size());
 
@@ -859,43 +866,33 @@ int chunker::process(std::string &input_string) {
 
     idx = -1;
     std::stringstream css;
-    size_t encoded_size;
-    uint8_t *encoded_buffer;
     std::vector<uint8_t> encode_buf;
     std::ofstream rangefile;
     rangefile.open(conf.rangePath(), std::ios::trunc | std::ios::binary);
     uint32_t chunkOffset = 0;
+    std::ofstream cfile;
     for (auto &c: chunks) {
         idx++;
         if (idx == 0)
             continue;
         if (conf.verbosity() > 2) {
-            std::cerr << "Compiling and compressing chunk " << idx;
+            std::cerr << "Compiling and encoding chunk " << idx;
             std::cerr << " to file " << conf.chunkPath(idx) << std::endl;
         }
         css.str("");
         css.clear();
-        c.compile(css, idx, table1, primaryOffset, primaryBlob,
-                  primaryRecs, table2, secondaryOffset, secondaryBlob,
-                  secondaryRecs);
-        std::string cs = css.str();
-        encoded_size = BrotliEncoderMaxCompressedSize(cs.size());
-        if (encode_buf.size() < encoded_size)
-            encode_buf.resize(encoded_size);
-        if (!BrotliEncoderCompress(BROTLI_MAX_QUALITY, BROTLI_DEFAULT_WINDOW,
-                                   BROTLI_MODE_FONT, cs.size(),
-                                   (const uint8_t *) cs.data(), &encoded_size,
-                                   encode_buf.data()))
-            throw std::runtime_error("Could not compress chunk");
-        std::ofstream cfile;
+        c.compile(css, idx, tiftb.id0, tiftb.id1, tiftb.id2, tiftb.id3,
+                  table1, primaryOffset, primaryBlob, primaryRecs,
+                  table2, secondaryOffset, secondaryBlob, secondaryRecs);
+        std::string zchunk = chunk::encode(css);
         cfile.open(conf.chunkPath(idx), std::ios::trunc | std::ios::binary);
-        cfile.write((char *) encode_buf.data(), encoded_size);
+        cfile.write(zchunk.data(), zchunk.size());
         cfile.close();
-        rangefile.write((char *) encode_buf.data(), encoded_size);
-        tiftc.chunkOffsets.push_back(chunkOffset);
-        chunkOffset += encoded_size;
+        rangefile.write(zchunk.data(), zchunk.size());
+        tiftb.chunkOffsets.push_back(chunkOffset);
+        chunkOffset += zchunk.size();
     }
-    tiftc.chunkOffsets.push_back(chunkOffset);
+    tiftb.chunkOffsets.push_back(chunkOffset);
     rangefile.close();
 
     set &c0g = chunks[0].gids;
@@ -962,21 +959,21 @@ int chunker::process(std::string &input_string) {
                                      HB_MEMORY_MODE_READONLY, NULL, NULL);
     }
 
-    tiftc.filesURI = conf.filesURI();
-    tiftc.rangeFileURI = conf.rangeFileURI();
+    tiftb.filesURI = conf.filesURI();
+    tiftb.rangeFileURI = conf.rangeFileURI();
 
     hb_face_t *fbldr = hb_face_builder_create();
 
     std::vector<uint32_t> tagOrder;
     css.str("");
     css.clear();
-    tiftc.compile(css);
-    std::string iftc_str = css.str();
-    hb_blob_t *iftcblob = hb_blob_create(iftc_str.data(), iftc_str.size(),
+    tiftb.compile(css);
+    std::string iftb_str = css.str();
+    hb_blob_t *iftbblob = hb_blob_create(iftb_str.data(), iftb_str.size(),
                                          HB_MEMORY_MODE_READONLY, NULL, NULL);
-    hb_face_builder_add_table(fbldr, T_IFTC, iftcblob);
-    tagOrder.push_back(T_IFTC);
-    hb_blob_destroy(iftcblob);
+    hb_face_builder_add_table(fbldr, T_IFTB, iftbblob);
+    tagOrder.push_back(T_IFTB);
+    hb_blob_destroy(iftbblob);
 
     if (tables.has(T_CMAP)) {
         hb_face_builder_add_table(fbldr, T_CMAP,
@@ -1026,10 +1023,10 @@ int chunker::process(std::string &input_string) {
     css.clear();
     ss.rdbuf()->pubsetbuf((char *)data, size);
     ss.seekp(0);
-    writeObject(ss, T_IFTC);
+    writeObject(ss, T_IFTB);
     std::ofstream myfile;
     auto sp = conf.subsetPath(is_cff);
-    std::cerr << "Writing uncompressed iftc base font file ";
+    std::cerr << "Writing uncompressed iftb base font file ";
     std::cerr << sp << std::endl;
 
     myfile.open(sp, std::ios::trunc | std::ios::binary);
@@ -1044,7 +1041,7 @@ int chunker::process(std::string &input_string) {
         throw std::runtime_error("Could not WOFF2 compress font");
     woff2_out.resize(woff2_size);
     sp = conf.woff2Path();
-    std::cerr << "Writing WOFF2 compressed iftc base font file ";
+    std::cerr << "Writing WOFF2 compressed iftb base font file ";
     std::cerr << sp << std::endl;
     myfile.open(sp, std::ios::trunc | std::ios::binary);
     myfile.write(woff2_out.data(), woff2_size);

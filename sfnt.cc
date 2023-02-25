@@ -11,10 +11,8 @@
 #include "sfnt.h"
 #include "tag.h"
 
-std::set<uint32_t> Table::known_tables = { tag("cmap"), tag("CFF "),
-                                           tag("CFF2"), tag("IFTC"),
-                                           tag("glyf"), tag("loca"),
-                                           tag("gvar"), tag("head") };
+std::set<uint32_t> Table::known_tables = { T_CMAP, T_CFF,  T_CFF2, T_IFTB,
+                                           T_GLYF, T_LOCA, T_GVAR, T_HEAD };
 
 bool sfnt::getTableStream(simplestream &s, uint32_t tg) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
@@ -48,7 +46,7 @@ void sfnt::read() {
         // case TAG('t', 'y', 'p', '1'):
         // case TAG('b', 'i', 't', 's'):
         case tag("OTTO"):
-        case tag("IFTC"):
+        case T_IFTB:
             break;
         default:
             throw std::runtime_error("Unrecognized sfnt type.");
@@ -92,7 +90,7 @@ void sfnt::write(bool writeHead) {
                                  "with sfnt header only.");
 
     for (auto &[tg, table]: directory) {
-        if (tg == tag("head"))
+        if (tg == T_HEAD)
             headTableOffset = table.offset;
         ss.seekp(table.entryOffset, std::ios::beg);
         writeObject(ss, tg);
@@ -121,7 +119,7 @@ void sfnt::adjustTable(uint32_t tg, const Table &table, bool rechecksum) {
     t->second.offset = table.offset;
     t->second.length = table.length;
     if (rechecksum)
-        t->second.checksum = calcTableChecksum(table, tg == tag("head"));
+        t->second.checksum = calcTableChecksum(table, tg == T_HEAD);
     else
         t->second.checksum = table.checksum;
 }
@@ -173,11 +171,11 @@ bool sfnt::checkSums(bool full) {
         readObject(ss, table.offset);
         readObject(ss, table.length);
 
-        if (tg == tag("head"))
+        if (tg == T_HEAD)
             headTableOffset = table.offset;
 
         if (full || directory.find(tg) != directory.end()) {
-            checksum = calcTableChecksum(table, tg == tag("head"));
+            checksum = calcTableChecksum(table, tg == T_HEAD);
             if (table.checksum != checksum) {
                 good = false;
                 std::cerr << "Warning: '";
