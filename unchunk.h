@@ -36,6 +36,11 @@ struct merger {
         }
     }
     void chunkAddRecs(uint16_t idx, char *buf, uint32_t len);
+    void reset() {
+        table1 = table2 = 0;
+        glyphMap1.clear();
+        glyphMap2.clear();
+    }
 };
 
 uint16_t chunkAddRecs(std::istream &is, merger &m);
