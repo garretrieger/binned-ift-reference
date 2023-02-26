@@ -9,13 +9,17 @@
 #include "tag.h"
 #include "unchunk.h"
 
-uint16_t chunkAddRecs(std::istream &is, merger &m) {
-    uint32_t i32, glyphCount, table1, table2 = 0, idx;
-    uint32_t length, offset, lastOffset = 0;
+void merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
+    uint32_t i32, glyphCount, table1, table2 = 0;
+    uint32_t offset, lastOffset = 0;
+    char *initialOffset;
     uint16_t i16;
     uint8_t i8, tableCount;
     std::vector<uint16_t> gids;
     glyphrec gr;
+    simpleistream is;
+
+    is.rdbuf()->pubsetbuf(buf, len);
 
     readObject(is, i32);
     if (i32 != tag("TIFC"))
@@ -27,8 +31,12 @@ uint16_t chunkAddRecs(std::istream &is, merger &m) {
     readObject(is, i32);  // id1
     readObject(is, i32);  // id2
     readObject(is, i32);  // id3
-    readObject(is, idx);  // Chunk index;
-    readObject(is, length);
+    readObject(is, i32);  // Chunk index;
+    if (idx != i32)
+        throw std::runtime_error("Chunk index mismatch");
+    readObject(is, i32);
+    if (len != i32)
+        throw std::runtime_error("Chunk length mismatch");
     readObject(is, glyphCount);
     readObject(is, tableCount);
     if (!(tableCount == 1 || tableCount == 2))
@@ -38,25 +46,24 @@ uint16_t chunkAddRecs(std::istream &is, merger &m) {
     readObject(is, table1);
     if (tableCount == 2)
         readObject(is, table2);
-    m.add_tables(table1, table2);
+    add_tables(table1, table2);
     readObject(is, lastOffset);
     for (auto i: gids) {
         readObject(is, offset);
-        gr.offset = lastOffset;
+        gr.offset = buf + lastOffset;
         gr.length = offset - lastOffset;
-        m.glyphMap1.emplace(i, gr);
+        glyphMap1.emplace(i, gr);
         lastOffset = offset;
     }
     if (tableCount == 2) {
         for (auto i: gids) {
             readObject(is, offset);
-            gr.offset = lastOffset;
+            gr.offset = buf + lastOffset;
             gr.length = offset - lastOffset;
-            m.glyphMap2.emplace(i, gr);
+            glyphMap2.emplace(i, gr);
             lastOffset = offset;
         }
     }
-    return idx;
 }
 
 void dumpChunk(std::ostream &os, std::istream &is) {
@@ -64,7 +71,6 @@ void dumpChunk(std::ostream &os, std::istream &is) {
     uint32_t length, offset, lastOffset = 0;
     uint8_t tableCount;
     std::vector<uint16_t> gids;
-    glyphrec gr;
 
     readObject(is, i32);
     if (i32 != tag("IFTC")) {

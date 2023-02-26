@@ -9,16 +9,11 @@
 
 void chunk::compile(std::ostream &os, uint16_t idx,
                     uint32_t id0, uint32_t id1, uint32_t id2, uint32_t id3,
-                    uint32_t table1, uint32_t offset1,
-                    blob &blob1, std::vector<glyphrec> &recs1,
-                    uint32_t table2, uint32_t offset2,
-                    blob &blob2, std::vector<glyphrec> &recs2,
+                    uint32_t table1, std::vector<glyphrec> &recs1,
+                    uint32_t table2, std::vector<glyphrec> &recs2,
                     uint32_t offset) {
     unsigned int length1, length2;
     bool twotables = (table2 != 0);
-    const char *base1 = hb_blob_get_data(blob1.b, &length1);
-    if (twotables)
-        const char *base2 = hb_blob_get_data(blob2.b, &length2);
     os.seekp(offset);
     writeObject(os, tag("IFTC"));
     writeObject(os, (uint32_t) 0);  // reserved
@@ -57,11 +52,11 @@ void chunk::compile(std::ostream &os, uint16_t idx,
     writeObject(os, c_offset);
     gid = HB_SET_VALUE_INVALID;
     while (gids.next(gid))
-        os.write(base1 + offset1 + recs1[gid].offset, recs1[gid].length);
+        os.write(recs1[gid].offset, recs1[gid].length);
     if (twotables) {
         gid = HB_SET_VALUE_INVALID;
         while (gids.next(gid))
-            os.write(base1 + offset1 + recs2[gid].offset, recs2[gid].length);
+            os.write(recs2[gid].offset, recs2[gid].length);
     }
     uint32_t bl = (uint32_t) os.tellp() - offset;
     os.seekp(bloffset);

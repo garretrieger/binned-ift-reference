@@ -2,7 +2,7 @@
 #include <filesystem>
 
 #include "chunk.h"
-#include "merger.h"
+#include "unchunk.h"
 #include "config.h"
 #include "wrappers.h"
 
@@ -31,7 +31,6 @@ class chunker {
     uint32_t glyph_count;
     int cff_charstrings_offset = -1;
 
-    uint32_t primaryOffset = 0, secondaryOffset = 0;
     blob primaryBlob, secondaryBlob, locaBlob;
     std::vector<glyphrec> primaryRecs, secondaryRecs;
 

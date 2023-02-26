@@ -323,12 +323,13 @@ int chunker::process(std::string &input_string) {
         uint8_t ioffsize = readObject<uint8_t>(sis);
         assert(ioffsize == 4);
         uint32_t lastioff = readObject<uint32_t>(sis), ioff;
+        const char *bbase = b + cff_charstrings_offset + 3 +
+                            (glyph_count + 1) * 4 - 1;
         for (int i = 0; i < glyph_count; i++) {
             readObject(sis, ioff);
-            primaryRecs.emplace_back(lastioff, ioff - lastioff);
+            primaryRecs.emplace_back(bbase + lastioff, ioff - lastioff);
             lastioff = ioff;
         }
-        primaryOffset = ((uint32_t) sis.tellg()) - 1;
     } else {
         {
             blob headBlob = hb_face_reference_table(subface.f, T_HEAD);
@@ -345,7 +346,6 @@ int chunker::process(std::string &input_string) {
             sis.clear();
         }
         primaryBlob = hb_face_reference_table(subface.f, T_GLYF);
-        primaryOffset = 0;
         locaBlob = hb_face_reference_table(subface.f, T_LOCA);
         unsigned int l;
         const char *b = hb_blob_get_data(locaBlob.b, &l);
@@ -355,7 +355,7 @@ int chunker::process(std::string &input_string) {
         uint32_t lastioff = readObject<uint32_t>(sis), ioff;
         for (int i = 0; i < glyph_count; i++) {
             readObject(sis, ioff);
-            primaryRecs.emplace_back(lastioff, ioff - lastioff);
+            primaryRecs.emplace_back(b + lastioff, ioff - lastioff);
             lastioff = ioff;
         }
         if (is_variable) {
@@ -374,11 +374,13 @@ int chunker::process(std::string &input_string) {
             assert(u16 == glyph_count);
             readObject(sis, u16);
             assert(u16 & 0x1);
+            uint32_t secondaryOffset;
             readObject(sis, secondaryOffset);
             readObject(sis, lastioff);
             for (int i = 0; i < glyph_count; i++) {
                 readObject(sis, ioff);
-                secondaryRecs.emplace_back(lastioff, ioff - lastioff);
+                secondaryRecs.emplace_back(b + secondaryOffset + lastioff,
+                                           ioff - lastioff);
                 lastioff = ioff;
             }
         }
@@ -882,8 +884,7 @@ int chunker::process(std::string &input_string) {
         css.str("");
         css.clear();
         c.compile(css, idx, tiftb.id0, tiftb.id1, tiftb.id2, tiftb.id3,
-                  table1, primaryOffset, primaryBlob, primaryRecs,
-                  table2, secondaryOffset, secondaryBlob, secondaryRecs);
+                  table1, primaryRecs, table2, secondaryRecs);
         std::string zchunk = chunk::encode(css);
         cfile.open(conf.chunkPath(idx), std::ios::trunc | std::ios::binary);
         cfile.write(zchunk.data(), zchunk.size());
@@ -912,13 +913,11 @@ int chunker::process(std::string &input_string) {
         uint32_t nboff = 1;
         char *nbinsert = nb + cff_charstrings_offset + 3 +
                          (glyph_count + 1) * 4;
-        const char *bbase = b + cff_charstrings_offset + 3 +
-                            (glyph_count + 1) * 4 - 1;
         for (uint32_t i = 0; i < glyph_count; i++) {
             const char *from = NULL;
             uint32_t froml = 0;
             if (c0g.has(i)) {
-                from = bbase + primaryRecs[i].offset;
+                from = primaryRecs[i].offset;
                 froml = primaryRecs[i].length;
             } else if (!is_variable) {
                 from = (char *) &endchar;
@@ -935,7 +934,6 @@ int chunker::process(std::string &input_string) {
                                         HB_MEMORY_MODE_READONLY, NULL, NULL);
     } else {
         unsigned int l;
-        const char *b = hb_blob_get_data(primaryBlob.b, &l);
         char *nglyf = (char *) malloc(l);
         char *nloca = (char *) malloc(glyph_count * 4);
         ss.rdbuf()->pubsetbuf(nloca, glyph_count * 4);
@@ -945,7 +943,7 @@ int chunker::process(std::string &input_string) {
             const char *from = NULL;
             uint32_t froml = 0;
             if (c0g.has(i)) {
-                from = b + primaryRecs[i].offset;
+                from = primaryRecs[i].offset;
                 froml = primaryRecs[i].length;
             }
             if (froml > 0)
