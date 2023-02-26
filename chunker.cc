@@ -1015,6 +1015,7 @@ int chunker::process(std::string &input_string) {
     }
 
     tagOrder.push_back(HB_TAG_NONE);
+    hb_face_builder_set_font_type(fbldr, T_IFTB);
     hb_face_builder_sort_tables(fbldr, (hb_tag_t *)tagOrder.data());
 
     hb_blob_t *outblob = hb_face_reference_blob(fbldr);
@@ -1022,8 +1023,7 @@ int chunker::process(std::string &input_string) {
     const char *data = hb_blob_get_data(outblob, &size);
     css.clear();
     ss.rdbuf()->pubsetbuf((char *)data, size);
-    ss.seekp(0);
-    writeObject(ss, T_IFTB);
+
     std::ofstream myfile;
     auto sp = conf.subsetPath(is_cff);
     std::cerr << "Writing uncompressed iftb base font file ";

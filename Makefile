@@ -2,7 +2,7 @@
 DEPDIR := .deps
 DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
-SRCS := chunker.cc config.cc main.cc chunk.cc merger.cc table_IFTB.cc sfnt.cc sanitize.cc unchunk.cc
+SRCS := chunker.cc config.cc main.cc chunk.cc merger.cc table_IFTB.cc sfnt.cc sanitize.cc unchunk.cc cmap.cc
 OBJS := ${SRCS:.cc=.o}
 CFLAGS := -I/home/skef/src/harfbuzz/src -g
 CXXFLAGS := ${CFLAGS} -std=c++17

@@ -33,7 +33,8 @@ std::string loadPathAsString(std::filesystem::path &fpath) {
         is_woff2 = true;
     else if (tg == tag("IFTZ"))
         is_compressed_chunk = true;
-    else if (tg != 0x00010000 && tg != tag("OTTO") && tg != tag("IFTC"))
+    else if (tg != 0x00010000 && tg != tag("OTTO") && tg != tag("IFTC") &&
+             tg != tag("IFTB"))
         throw std::runtime_error("Error: Unrecognized file/chunk type");
 
     if (is_woff2) {
@@ -101,17 +102,39 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
         table_IFTB tiftb;
         tiftb.decompile(ss);
         std::filesystem::current_path(fpath.parent_path());
-        for (auto cidx: chunks) {
-            if (cidx >= tiftb.chunkCount) {
-                std::cerr << cidx << " is greater than Chunk Count ";
-                std::cerr << tiftb.chunkCount << std::endl;
-                continue;
+        std::stringstream css;
+        if (dumpchunks["-r"] == true) {
+            std::filesystem::path rpath = getRangePath(fpath, tiftb);
+            std::ifstream rs(rpath, std::ios::binary);
+            for (auto cidx: chunks) {
+                if (cidx >= tiftb.chunkCount) {
+                    std::cerr << cidx << " is greater than Chunk Count ";
+                    std::cerr << tiftb.chunkCount << std::endl;
+                    continue;
+                }
+                uint32_t coff, clen;
+                coff = tiftb.chunkOffsets[cidx - 1];
+                clen = tiftb.chunkOffsets[cidx] - coff;
+                std::string cfz(clen, 0);
+                rs.seekg(coff);
+                rs.read(cfz.data(), clen);
+                css.str(decodeChunk(cfz));
+                std::cerr << std::endl << cidx << std::endl;
+                dumpChunk(std::cerr, css);
             }
-            std::filesystem::path cp = getChunkPath(fpath, tiftb, cidx);
-            std::string cfs = loadPathAsString(cp);
-            std::stringstream cfss(cfs);
-            std::cerr << std::endl << cidx << ": " << cp << std::endl;
-            dumpChunk(std::cerr, cfss);
+        } else {
+            for (auto cidx: chunks) {
+                if (cidx >= tiftb.chunkCount) {
+                    std::cerr << cidx << " is greater than Chunk Count ";
+                    std::cerr << tiftb.chunkCount << std::endl;
+                    continue;
+                }
+                std::filesystem::path cp = getChunkPath(fpath, tiftb, cidx);
+                std::string cfs = loadPathAsString(cp);
+                css.str(cfs);
+                std::cerr << std::endl << cidx << ": " << cp << std::endl;
+                dumpChunk(std::cerr, css);
+            }
         }
     } else {
         std::cerr << "Error: No command specified" << std::endl;
@@ -166,6 +189,10 @@ int main(int argc, char **argv) {
               .nargs(argparse::nargs_pattern::at_least_one)
               .required()
               .scan<'u', uint16_t>();
+    dumpchunks.add_argument("-r", "--by-range")
+              .help("Retrieve the chunk from the range file")
+              .default_value(false)
+              .implicit_value(true);
 
     program.add_subparser(process);
     program.add_subparser(check);

@@ -128,7 +128,7 @@ struct subset_input {
     hb_subset_input_t *i;
     subset_input() { i = hb_subset_input_create_or_fail(); }
     ~subset_input() { hb_subset_input_destroy(i); }
-    void keep_everything() { hb_subset_input_keep_everything(i); }
+    // void keep_everything() { hb_subset_input_keep_everything(i); }
     void set_flags(unsigned v) { hb_subset_input_set_flags(i, v); }
     hb_subset_flags_t get_flags() { return hb_subset_input_get_flags(i); }
     hb_set_t *unicode_set() { return hb_subset_input_unicode_set(i); }

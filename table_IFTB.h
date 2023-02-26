@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "streamhelp.h"
+#include "cmap.h"
 
 #pragma once
 
@@ -30,12 +31,19 @@ struct table_IFTB {
     std::string filesURI, rangeFileURI;
     std::unordered_map<uint32_t, uint16_t> uniMap;
 
+    bool addcmap(std::istream &i, uint32_t offset = 0,
+                 bool keepGIDMap = false) {
+        bool r = readcmap(i, offset, uniMap, &gidMap);
+        if (r && !keepGIDMap)
+            gidMap.clear();
+        return r;
+    }
     void dumpChunkSet(std::ostream &os);
     void writeChunkSet(std::ostream &os);
     void setChunkCount(uint32_t cc) {
         chunkCount = cc;
         chunkSet.clear();
-        chunkSet.resize(chunkCount + 8);
+        chunkSet.resize(chunkCount);
     }
     uint16_t readChunkIndex(std::istream &i) {
         uint8_t i8;
@@ -57,7 +65,5 @@ struct table_IFTB {
     }
     unsigned int compile(std::ostream &o, uint32_t offset = 0);
     void decompile(std::istream &i, uint32_t offset = 0);
-    bool addcmap(std::istream &i, uint32_t offset = 0,
-                 bool keepGIDmap = false);
     void dump(std::ostream &o, bool full = false);
 };

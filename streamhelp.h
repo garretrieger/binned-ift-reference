@@ -74,8 +74,8 @@ static void writeObject(std::ostream &f, const T& o) {
 }
 
 struct simpleibuf : std::streambuf {
-    simpleibuf(char *buf=nullptr, std::streamsize n=0) {
-        setg(buf, buf, buf + n);
+    simpleibuf(char *buf=nullptr, size_t length=0) {
+        setg(buf, buf, buf + length);
     }
     std::streambuf *setbuf(char *buf, std::streamsize n) override {
         setg(buf, buf, buf+n);
@@ -85,9 +85,8 @@ struct simpleibuf : std::streambuf {
                            std::ios_base::openmode which = std::ios_base::in | std::ios_base::out) override {
         if (sp < 0 || sp > (egptr() - eback()))
             return -1;
-        char *p = eback() + sp;
         if (which & std::ios_base::in) {
-            setg(eback(), p, egptr());
+            setg(eback(), eback() + sp, egptr());
         }
         return sp;
     }
@@ -111,10 +110,10 @@ struct simpleibuf : std::streambuf {
     }
 };
 
-struct simpleistream: private virtual simpleibuf, public std::istream {
+struct simpleistream: public std::istream {
 public:
     simpleistream(const char *buf=nullptr, size_t length=0) :
-        simpleibuf(const_cast<char *>(buf), length),
+        sb(const_cast<char *>(buf), length),
         std::ios(static_cast<std::streambuf *>(&sb)),
         std::istream(static_cast<std::streambuf *>(&sb)) {}
     virtual const char *bufinfo(size_t &length) {

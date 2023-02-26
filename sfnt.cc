@@ -132,7 +132,8 @@ uint32_t sfnt::calcTableChecksum(const Table &table, bool is_head) {
         throw std::runtime_error("Can't calculate table checksum "
                                  "with sfnt header only.");
 
-    ss.seekg(table.offset, std::ios::beg);
+    uint32_t p = ss.tellg();
+    ss.seekg(table.offset);
     while (nLongs--)
         checksum += readObject<uint32_t>(ss);
 
@@ -142,6 +143,7 @@ uint32_t sfnt::calcTableChecksum(const Table &table, bool is_head) {
         readObject(ss, headAdjustment);
         checksum -= headAdjustment;
     }
+    ss.seekg(p);
     return checksum;
 }
 
@@ -151,15 +153,19 @@ bool sfnt::checkSums(bool full) {
     uint32_t checkSumAdjustment = 0;
     uint32_t totalsum = 0;
     uint32_t headTableOffset = 0;
-    bool good = true;
+    uint32_t nHeaderSum = 0;
+    uint32_t nOtherTableSum = 0, nOtherRecordSum = 0;
+    uint32_t nDirTableSum = 0, nDirRecordSum = 0;
+    bool good = true, hasCFF = false;
 
     /* Read directory header */
-    ss.seekg(0, std::ios::beg);
-    uint32_t nLongs = (header_size + Table::entry_size * numTables) / 4;
+    ss.seekg(0);
+    uint32_t nLongs = header_size / 4;
     while (nLongs--)
-        totalsum += readObject<uint32_t>(ss);
+        nHeaderSum += readObject<uint32_t>(ss);
 
-    ss.seekg(header_size, std::ios::beg);
+    totalsum += nHeaderSum;
+
     for (int i = 0; i < numTables; i++) {
         uint32_t checksum;
         uint32_t tg;
@@ -170,11 +176,26 @@ bool sfnt::checkSums(bool full) {
         readObject(ss, table.checksum);
         readObject(ss, table.offset);
         readObject(ss, table.length);
+        if (tg == T_CFF || tg == T_CFF2)
+            hasCFF = true;
+        totalsum += tg + 2 * table.checksum + table.offset + table.length;
+        bool inDirectory = (directory.find(tg) != directory.end());
+        if (!inDirectory) {
+            nOtherRecordSum += tg + table.checksum + table.offset +
+                               table.length;
+            nOtherTableSum += table.checksum;
+        } else {
+            nDirRecordSum += tg + table.checksum + table.offset +
+                             table.length;
+            nDirTableSum += table.checksum;
+        }
+        // ptag(std::cerr, tg);
+        // std::cerr << " " << table.entryOffset << " " << table.checksum << " " << table.offset << " " << table.length << std::endl;
 
         if (tg == T_HEAD)
             headTableOffset = table.offset;
 
-        if (full || directory.find(tg) != directory.end()) {
+        if (full || inDirectory) {
             checksum = calcTableChecksum(table, tg == T_HEAD);
             if (table.checksum != checksum) {
                 good = false;
@@ -187,10 +208,17 @@ bool sfnt::checkSums(bool full) {
                 std::cerr << std::endl;
             }
         }
-
-        totalsum += table.checksum;
     }
-    
+    if (headerSum != nHeaderSum)
+        std::cerr << "Warning: Mismatch in headerSum" << std::endl;
+    if (otherRecordSum != nOtherRecordSum)
+        std::cerr << "Warning: Mismatch in otherRecordSum" << std::endl;
+    if (otherTableSum != nOtherTableSum)
+        std::cerr << "Warning: Mismatch in otherTableSum" << std::endl;
+    if (nHeaderSum + nOtherRecordSum + nOtherTableSum + nDirRecordSum +
+        nDirTableSum != totalsum) 
+        std::cerr << "Warning: totalsum calculation doesn't match" << std::endl;
+
     if (headTableOffset == 0) {
         good = false;
         std::cerr << "Warning: No head table found" << std::endl;

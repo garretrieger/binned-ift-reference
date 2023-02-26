@@ -12,6 +12,11 @@ bool iftb_sanitize(std::string &s, config &conf) {
 
     try {
         sf.read();
+        bool r = sf.checkSums(conf.verbosity() > 1);
+        if (!r) {
+            std::cerr << "sfnt table checksum error" << std::endl;
+            return false;
+        }
     } catch (const std::runtime_error &ex) {
         std::cerr << "Error parsing sfnt headers: " << ex.what() << std::endl;
         return false;
