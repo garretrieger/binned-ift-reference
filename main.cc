@@ -5,7 +5,6 @@
 #include <stdexcept>
 
 #include "argparse.hpp"
-#include <woff2/decode.h>
 
 #include "sanitize.h"
 #include "config.h"
@@ -17,41 +16,18 @@
 #include "streamhelp.h"
 
 std::string loadPathAsString(std::filesystem::path &fpath) {
-    bool is_woff2 = false, is_compressed_chunk = false;
-    uint32_t tg; 
-
     std::ifstream ifs(fpath, std::ios::binary);
     std::stringstream ss;
     ss << ifs.rdbuf();
     std::string s = ss.str();
     ifs.close();
 
-    ss.seekg(0);
-    readObject(ss, tg);
+    uint32_t tg = decodeBuffer(NULL, 0, s);
 
-    if (tg == tag("wOF2"))
-        is_woff2 = true;
-    else if (tg == tag("IFTZ"))
-        is_compressed_chunk = true;
-    else if (tg != 0x00010000 && tg != tag("OTTO") && tg != tag("IFTC") &&
-             tg != tag("IFTB"))
+    if (tg != 0x00010000 && tg != tag("OTTO") &&
+        tg != tag("IFTC") && tg != tag("IFTB"))
         throw std::runtime_error("Error: Unrecognized file/chunk type");
 
-    if (is_woff2) {
-        const uint8_t *iptr = reinterpret_cast<const uint8_t*>(s.data());
-        std::string t(std::min(woff2::ComputeWOFF2FinalSize(iptr, s.size()),
-                               woff2::kDefaultMaxSize), 0);
-        woff2::WOFF2StringOut o(&t);
-        auto ok = woff2::ConvertWOFF2ToTTF(iptr, s.size(), &o);
-        if (!ok)
-            throw std::runtime_error("Error: Could not parse WOFF2 input file");
-        s.swap(t);
-        t.clear();
-    } else if (is_compressed_chunk) {
-        std::string t = decodeChunk(s);
-        s.swap(t);
-        t.clear();
-    }
     return s;
 }
 
@@ -104,32 +80,31 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
         std::filesystem::current_path(fpath.parent_path());
         std::stringstream css;
         if (dumpchunks["-r"] == true) {
-            std::filesystem::path rpath = getRangePath(fpath, tiftb);
+            std::filesystem::path rpath = tiftb.getRangeFileURI();
             std::ifstream rs(rpath, std::ios::binary);
             for (auto cidx: chunks) {
-                if (cidx >= tiftb.chunkCount) {
+                if (cidx >= tiftb.getChunkCount()) {
                     std::cerr << cidx << " is greater than Chunk Count ";
-                    std::cerr << tiftb.chunkCount << std::endl;
+                    std::cerr << tiftb.getChunkCount() << std::endl;
                     continue;
                 }
-                uint32_t coff, clen;
-                coff = tiftb.chunkOffsets[cidx - 1];
-                clen = tiftb.chunkOffsets[cidx] - coff;
+                auto [cstart, cend] = tiftb.getChunkRange(cidx);
+                uint32_t clen = cend - cstart;
                 std::string cfz(clen, 0);
-                rs.seekg(coff);
+                rs.seekg(cstart);
                 rs.read(cfz.data(), clen);
-                css.str(decodeChunk(cfz));
+                css.str(decodeChunk(cfz.data(), cfz.size()));
                 std::cerr << std::endl << cidx << std::endl;
                 dumpChunk(std::cerr, css);
             }
         } else {
             for (auto cidx: chunks) {
-                if (cidx >= tiftb.chunkCount) {
+                if (cidx >= tiftb.getChunkCount()) {
                     std::cerr << cidx << " is greater than Chunk Count ";
-                    std::cerr << tiftb.chunkCount << std::endl;
+                    std::cerr << tiftb.getChunkCount() << std::endl;
                     continue;
                 }
-                std::filesystem::path cp = getChunkPath(fpath, tiftb, cidx);
+                std::filesystem::path cp = tiftb.getChunkURI(cidx);
                 std::string cfs = loadPathAsString(cp);
                 css.str(cfs);
                 std::cerr << std::endl << cidx << ": " << cp << std::endl;

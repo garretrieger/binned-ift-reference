@@ -14,18 +14,8 @@ struct glyphrec {
     uint32_t length = 0;
 };
 
-struct tablerec {
-    tablerec() {}
-    bool used = false;
-    bool moving = false;
-    uint32_t old_start;
-    uint32_t new_start;
-    uint32_t old_length;
-    uint32_t new_length;
-};
-
 struct merger {
-    uint32_t table1 = 0, table2 = 0;
+    uint32_t table1 {0}, table2 {0}, id0 {0}, id1 {0}, id2 {0}, id3 {0};
     std::map<uint32_t, glyphrec> glyphMap1, glyphMap2;
     void add_tables(uint32_t t1, uint32_t t2) {
         if (table1 == 0) {
@@ -35,18 +25,25 @@ struct merger {
             assert(table1 == t1 && table2 == t2);
         }
     }
-    void chunkAddRecs(uint16_t idx, char *buf, uint32_t len);
+    bool chunkAddRecs(uint16_t idx, char *buf, uint32_t len);
     void reset() {
         table1 = table2 = 0;
         glyphMap1.clear();
         glyphMap2.clear();
     }
+    void setID(uint32_t i0, uint32_t i1, uint32_t i2, uint32_t i3) {
+        id0 = i0;
+        id1 = i1;
+        id2 = i2;
+        id3 = i3;
+    }
+    bool chunkError(uint16_t cidx, const char *m) {
+        std::cerr << "Chunk " << cidx << " error: " << m << std::endl;
+        return false;
+    }
 };
 
-uint16_t chunkAddRecs(std::istream &is, merger &m);
 void dumpChunk(std::ostream &os, std::istream &is);
-std::filesystem::path getChunkPath(std::filesystem::path &bp,
-                                   table_IFTB &tiftb, uint16_t idx);
-std::filesystem::path getRangePath(std::filesystem::path &bp,
-                                   table_IFTB &tiftb);
-std::string decodeChunk(const std::string &s);
+std::string decodeChunk(char *buf, size_t length);
+uint32_t decodeBuffer(char *buf, uint32_t length, std::string &s,
+                      float reserveExtra = 0.0);

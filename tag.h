@@ -25,4 +25,8 @@ inline void ptag(std::ostream &out, uint32_t tag) {
     }
 }
 
+inline uint32_t tagFromBuffer(const char *c) {
+    return (c[0] << 24) | (c[1] << 16) | c[2] << 8 | c[3];
+}
+
 extern std::unordered_set<uint32_t> default_features;

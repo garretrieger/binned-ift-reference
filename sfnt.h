@@ -43,8 +43,8 @@ class sfnt {
         sfntOnly = so;
         ss.rdbuf()->pubsetbuf(b, l);
     }
-    void read();
-    void write(bool writeHead = true);
+    bool read();
+    bool write(bool writeHead = true);
     bool has(uint32_t tg) {
         assert(Table::known_tables.find(tg) != Table::known_tables.end());
         return directory.find(tg) != directory.end();
@@ -52,11 +52,16 @@ class sfnt {
     bool getTableStream(simplestream &s, uint32_t tg);
     uint32_t getTableOffset(uint32_t tg, uint32_t &length);
 
-    void adjustTable(uint32_t tag, const Table &table, bool rechecksum);
-    uint32_t calcTableChecksum(const Table &table, bool is_head=false);
+    bool adjustTable(uint32_t tag, const Table &table, bool rechecksum);
+    bool calcTableChecksum(const Table &table, uint32_t &checksum,
+                           bool is_head=false);
     bool checkSums(bool full=false);
 
  private:
+    bool error(const char *m) {
+        std::cerr << "OpenType/sfnt error: " << m << std::endl;
+        return false;
+    }
     int32_t version = 0;
     uint16_t numTables = 0;
     static const uint32_t header_size = sizeof(uint32_t) +

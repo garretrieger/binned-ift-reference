@@ -2,15 +2,17 @@
 #include <cassert>
 #include <cstring>
 #include <vector>
+#include <limits>
 
 #include <brotli/decode.h>
+#include <woff2/decode.h>
 
 #include "streamhelp.h"
 #include "tag.h"
 #include "unchunk.h"
 
-void merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
-    uint32_t i32, glyphCount, table1, table2 = 0;
+bool merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
+    uint32_t glyphCount, table1, table2 = 0;
     uint32_t offset, lastOffset = 0;
     char *initialOffset;
     uint16_t i16;
@@ -21,26 +23,28 @@ void merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
 
     is.rdbuf()->pubsetbuf(buf, len);
 
-    readObject(is, i32);
-    if (i32 != tag("TIFC"))
-        throw std::runtime_error("Initial bytes of chunk must be TIFC");
-    readObject(is, i32);
-    if (i32 != 0)
-        throw std::runtime_error("Reserved bytes in chunk must be 0");
-    readObject(is, i32);  // id0
-    readObject(is, i32);  // id1
-    readObject(is, i32);  // id2
-    readObject(is, i32);  // id3
-    readObject(is, i32);  // Chunk index;
-    if (idx != i32)
-        throw std::runtime_error("Chunk index mismatch");
-    readObject(is, i32);
-    if (len != i32)
-        throw std::runtime_error("Chunk length mismatch");
+    if (readObject<uint32_t>(is) != tag("TIFC"))
+        return chunkError(idx, "Initial bytes of chunk must be \"TIFC\"");
+    if (readObject<uint32_t>(is) != 0)
+        return chunkError(idx, "Reserved bytes in chunk must be 0");
+    if (readObject<uint32_t>(is) != id0)
+        return chunkError(idx, "ID mismatch (id0)");
+    if (readObject<uint32_t>(is) != id1)
+        return chunkError(idx, "ID mismatch (id1)");
+    if (readObject<uint32_t>(is) != id2)
+        return chunkError(idx, "ID mismatch (id2)");
+    if (readObject<uint32_t>(is) != id3)
+        return chunkError(idx, "ID mismatch (id3)");
+    if (readObject<uint32_t>(is) != idx)
+        return chunkError(idx, "Chunk index mismatch");
+    if (readObject<uint32_t>(is) != len)
+        return chunkError(idx, "Chunk index mismatch");
     readObject(is, glyphCount);
+    if (glyphCount > std::numeric_limits<uint16_t>::max())
+        return chunkError(idx, "Unreasonable glyph count");
     readObject(is, tableCount);
     if (!(tableCount == 1 || tableCount == 2))
-        throw std::runtime_error("Chunk table count must be 1 or 2");
+        return chunkError(idx, "Chunk table count must be 1 or 2");
     for (int i = 0; i < glyphCount; i++)
         gids.push_back(readObject<uint16_t>(is));
     readObject(is, table1);
@@ -64,23 +68,26 @@ void merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
             lastOffset = offset;
         }
     }
+    if (is.fail())
+        return chunkError(idx, "Decompile stream read failure");
+    return true;
 }
 
 void dumpChunk(std::ostream &os, std::istream &is) {
-    uint32_t i32, glyphCount, table1, table2 = 0, idx;
+    uint32_t u32, glyphCount, table1, table2 = 0, idx;
     uint32_t length, offset, lastOffset = 0;
     uint8_t tableCount;
     std::vector<uint16_t> gids;
 
-    readObject(is, i32);
-    if (i32 != tag("IFTC")) {
+    readObject(is, u32);
+    if (u32 != tag("IFTC")) {
         std::cerr << "Unrecognized chunk type '";
-        ptag(std::cerr, i32);
+        ptag(std::cerr, u32);
         std::cerr << "': can't display contents" << std::endl;
         return;
     }
-    readObject(is, i32);
-    if (i32 != 0) {
+    readObject(is, u32);
+    if (u32 != 0) {
         std::cerr << "Reserved bytes in chunk must be 0: ";
         std::cerr << "can't display contents" << std::endl;
     }
@@ -139,57 +146,84 @@ void dumpChunk(std::ostream &os, std::istream &is) {
         std::cerr << std::endl;
     }
 }
-
-std::filesystem::path getChunkPath(std::filesystem::path &bp,
-                                   table_IFTB &tiftb, uint16_t idx) {
-    char buf[10];
-    uint8_t digit;
-    size_t pos = 0, lastPos = 0;
-    snprintf(buf, sizeof(buf), "%08x", (int) idx);
-
-    std::filesystem::path t;
-    std::string &fURI = tiftb.filesURI;
-    while ((pos = fURI.find('$', pos)) != std::string::npos) {
-        t += fURI.substr(lastPos, pos-lastPos);
-        digit = (uint8_t) fURI[pos+1] - 48;
-        if (digit > 8 || digit <= 0)
-            throw std::runtime_error("invalid filesURI string in IFTB table");
-        t += buf[8 - digit];
-        lastPos = pos = pos + 2;
-    }
-    t += fURI.substr(lastPos);
-    return t;
-}
-
-std::filesystem::path getRangePath(std::filesystem::path &bp,
-                                   table_IFTB &tiftb) {
-    std::filesystem::path t(tiftb.rangeFileURI);
-    return t;
-}
-
-std::string decodeChunk(const std::string &s) {
+ 
+std::string decodeChunk(char *buf, size_t length) {
     uint32_t l;
 
-    std::istringstream ss(s);
-    ss.seekg(28);  // length offset
-    readObject(ss, l);
+    simpleistream sis;
+    sis.rdbuf()->pubsetbuf(buf, length);
+    sis.seekg(28);  // length offset
+    readObject(sis, l);
 
     std::string r(l, 0);
-    memcpy(r.data(), s.data(), 32);
+    memcpy(r.data(), buf, 32);
     size_t decoded_size = l - 32;
-    auto ok = BrotliDecoderDecompress(s.size(), (uint8_t *) s.data() + 32,
+    auto ok = BrotliDecoderDecompress(length - 32, (uint8_t *) buf + 32,
                                       &decoded_size,
                                       (uint8_t *) r.data() + 32);
-    if (ok != BROTLI_DECODER_RESULT_SUCCESS) {
-        if (decoded_size != l - 32)
-            throw std::runtime_error("Error: Wrong length encoded in chunk");
-        else
-            throw std::runtime_error("Error: Could not decode IFTB chunk");
+    if (ok != BROTLI_DECODER_RESULT_SUCCESS && decoded_size == l - 32) {
+        std::cerr << "Error: Could not decompress IFTZ chunk";
+        r.clear();
+    } else if (decoded_size != l - 32) {
+        std::cerr << "Error: Wrong length encoded in chunk";
+        r.clear();
     }
-    if (decoded_size != l - 32)
-        throw std::runtime_error("Error: Wrong length encoded in chunk");
 
     r[3] = 'C';
     return r;
 }
 
+
+/* When buf != NULL the output should be copied into the string, which
+   will be replaced.
+   When buf == NULL the string will be treated as the input, which will
+   only be changed if it needs to be decoded (decompressed)
+ */
+uint32_t decodeBuffer(char *buf, uint32_t length, std::string &s,
+                     float reserveExtra) {
+    bool is_woff2 = false, is_compressed_chunk = false;
+    bool in_string = (buf == NULL);
+    uint32_t tg; 
+
+    assert(reserveExtra >= 0 && reserveExtra < 10.0);
+
+    if (in_string) {
+        buf = s.data();
+        length = s.size();
+    }
+    tg = tagFromBuffer(buf);
+
+    if (tg == tag("wOF2"))
+        is_woff2 = true;
+    else if (tg == tag("IFTZ"))
+        is_compressed_chunk = true;
+
+    if (is_woff2) {
+        const uint8_t *iptr = reinterpret_cast<const uint8_t*>(buf);
+        uint32_t sz = std::min(woff2::ComputeWOFF2FinalSize(iptr, length),
+                               woff2::kDefaultMaxSize);
+        uint32_t reserve = (uint32_t) ((float) sz * (1 + reserveExtra));
+        std::string t;
+        t.reserve(reserve);
+        t.resize(sz);
+        woff2::WOFF2StringOut o(&t);
+        auto ok = woff2::ConvertWOFF2ToTTF(iptr, length, &o);
+        if (ok) {
+            s.swap(t);
+            t.clear();
+            tg = tagFromBuffer(s.data());
+        } else {
+            tg = 0;
+        }
+    } else if (is_compressed_chunk) {
+        std::string t = decodeChunk(buf, length);
+        if (t.size() > 4) {
+            s.swap(t);
+            t.clear();
+            tg = tagFromBuffer(s.data());
+        } else {
+            tg = 0;
+        }
+    }
+    return tg;
+}

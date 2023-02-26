@@ -36,7 +36,7 @@ uint32_t sfnt::getTableOffset(uint32_t tg, uint32_t &length) {
     return r;
 }
 
-void sfnt::read() {
+bool sfnt::read() {
     /* Read and validate version */
     ss.seekg(0, std::ios::beg);
     readObject(ss, version);
@@ -49,7 +49,7 @@ void sfnt::read() {
         case T_IFTB:
             break;
         default:
-            throw std::runtime_error("Unrecognized sfnt type.");
+            return error("Unrecognized file type.");
     }
 
     readObject(ss, numTables);
@@ -79,15 +79,17 @@ void sfnt::read() {
             otherTableSum += table.checksum;
         }
     }
+    if (ss.fail())
+        return error("Stream read failure");
+    return true;
 }
 
-void sfnt::write(bool writeHead) {
+bool sfnt::write(bool writeHead) {
     uint32_t totalsum = headerSum + otherRecordSum + otherTableSum;
     uint32_t headTableOffset = 0;
     uint32_t checkSumAdjustment;
     if (writeHead and sfntOnly)
-        throw std::runtime_error("Can't update head table "
-                                 "with sfnt header only.");
+        return error("Cannot write to head table in \"sfnt only\" mode");
 
     for (auto &[tg, table]: directory) {
         if (tg == T_HEAD)
@@ -104,35 +106,40 @@ void sfnt::write(bool writeHead) {
 
     if (writeHead) {
         if (headTableOffset == 0)
-            throw std::runtime_error(" Warning: No head table found");
+            return error("No head table found");
         ss.seekp(headTableOffset + head_adjustment_offset, std::ios::beg);
         writeObject(ss, checkSumAdjustment);
     }
+    if (ss.fail())
+        return error("Stream write failure.");
+    return true;
 }
 
-void sfnt::adjustTable(uint32_t tg, const Table &table, bool rechecksum) {
+bool sfnt::adjustTable(uint32_t tg, const Table &table, bool rechecksum) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     auto t = directory.find(tg);
     if (t == directory.end())
-        throw std::runtime_error("Can't find sfnt table to adjust");
+        return error("Can't find sfnt table to adjust");
 
     t->second.offset = table.offset;
     t->second.length = table.length;
     if (rechecksum)
-        t->second.checksum = calcTableChecksum(table, tg == T_HEAD);
+        if (!calcTableChecksum(table, t->second.checksum, tg == T_HEAD))
+            return false;
     else
         t->second.checksum = table.checksum;
+    return true;
 }
 
-uint32_t sfnt::calcTableChecksum(const Table &table, bool is_head) {
-    uint32_t checksum = 0, headAdjustment;
-    uint32_t nLongs = (table.length + 3) / 4;
+bool sfnt::calcTableChecksum(const Table &table, uint32_t &checksum,
+                             bool is_head) {
+    uint32_t headAdjustment, nLongs = (table.length + 3) / 4, p;
 
     if (sfntOnly)
-        throw std::runtime_error("Can't calculate table checksum "
-                                 "with sfnt header only.");
+        return error("Can't calculate table checksum with sfnt header only");
 
-    uint32_t p = ss.tellg();
+    checksum = 0;
+    p = ss.tellg();
     ss.seekg(table.offset);
     while (nLongs--)
         checksum += readObject<uint32_t>(ss);
@@ -144,7 +151,10 @@ uint32_t sfnt::calcTableChecksum(const Table &table, bool is_head) {
         checksum -= headAdjustment;
     }
     ss.seekg(p);
-    return checksum;
+
+    if (ss.fail())
+        return error("Stream failure when calculating checksum");
+    return true;
 }
 
 /* Check that the table checksums and the head adjustment checksums are
@@ -196,7 +206,8 @@ bool sfnt::checkSums(bool full) {
             headTableOffset = table.offset;
 
         if (full || inDirectory) {
-            checksum = calcTableChecksum(table, tg == T_HEAD);
+            if (!calcTableChecksum(table, checksum, tg == T_HEAD))
+                return false;
             if (table.checksum != checksum) {
                 good = false;
                 std::cerr << "Warning: '";

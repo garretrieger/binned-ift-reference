@@ -4,10 +4,14 @@ import struct
 
 CHUNK_HEADER_FORMAT = """
     > # big endian
-    majorVersion:       H
-    minorVersion:       H
-    checksum:           I
-    chunkIndex:         H
+    type:               I
+    reserved:           I
+    id0:                I
+    id1:                I
+    id2:                I
+    id3:                I
+    chunkIndex:         I
+    length:             I
     glyphCount:         I
     tableCount:         B
 """

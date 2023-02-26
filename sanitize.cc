@@ -10,15 +10,11 @@ bool iftb_sanitize(std::string &s, config &conf) {
     sfnt sf(s);
     simplestream ss;
 
-    try {
-        sf.read();
-        bool r = sf.checkSums(conf.verbosity() > 1);
-        if (!r) {
-            std::cerr << "sfnt table checksum error" << std::endl;
-            return false;
-        }
-    } catch (const std::runtime_error &ex) {
-        std::cerr << "Error parsing sfnt headers: " << ex.what() << std::endl;
+    if (!sf.read()) {
+        return false;
+    }
+    if (!sf.checkSums(conf.verbosity() > 1)) {
+        std::cerr << "sfnt table checksum error" << std::endl;
         return false;
     }
 
@@ -29,12 +25,8 @@ bool iftb_sanitize(std::string &s, config &conf) {
 
     table_IFTB tiftb;
     
-    try {
-        tiftb.decompile(ss);
-    } catch (const std::runtime_error &ex) {
-        std::cerr << "Error parsing IFTB table: " << ex.what() << std::endl;
+    if (!tiftb.decompile(ss))
         return false;
-    }
 
     if (conf.verbosity())
         tiftb.dump(std::cerr);

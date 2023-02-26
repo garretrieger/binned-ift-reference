@@ -7,16 +7,11 @@
 
 #pragma once
 
-struct chunk {
-    set codepoints;
-    set gids;
-    uint16_t group = 0;
-    uint32_t feat = 0;
-    uint32_t size = 0;
-    uint16_t from_min = 0, from_max = 0;
-    uint32_t merged_to = (uint32_t) -1;
-    chunk(const chunk &c) = delete;
+class chunk {
+public:
     chunk() {}
+    friend class chunker;
+    chunk(const chunk &c) = delete;
     chunk(chunk &&c) {
         codepoints.s = c.codepoints.s;
         c.codepoints.s = hb_set_create();
@@ -55,4 +50,12 @@ struct chunk {
                  uint32_t table2, std::vector<glyphrec> &recs2,
                  uint32_t offset = 0);
     static std::string encode(std::stringstream &ss);
+private:
+    set codepoints;
+    set gids;
+    uint16_t group = 0;
+    uint32_t feat = 0;
+    uint32_t size = 0;
+    uint16_t from_min = 0, from_max = 0;
+    uint32_t merged_to = (uint32_t) -1;
 };

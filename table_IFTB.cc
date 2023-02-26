@@ -29,6 +29,15 @@ void table_IFTB::dumpChunkSet(std::ostream &os) {
     }
     os << std::endl;
 }
+
+std::pair<uint32_t, uint32_t> table_IFTB::getChunkRange(uint16_t cidx) {
+    if (cidx >= chunkOffsets.size() - 1)
+        return std::pair<uint32_t, uint32_t>(0, 0);
+
+    return std::pair<uint32_t, uint32_t>(chunkOffsets[cidx-1],
+                                         chunkOffsets[cidx]);
+}
+
             
 uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
     uint32_t gidMapTableOffset = 0, chunkOffsetTableOffset = 0;
@@ -101,7 +110,7 @@ uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
     return l;
 }
 
-void table_IFTB::decompile(std::istream &is, uint32_t offset) {
+bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
     uint32_t gidMapTableOffset, chunkOffsetTableOffset;
     uint32_t featureMapTableOffset;
     uint32_t gidCount;
@@ -109,10 +118,10 @@ void table_IFTB::decompile(std::istream &is, uint32_t offset) {
     is.seekg(offset);
     readObject(is, majorVersion);
     if (majorVersion != 0)
-        throw std::runtime_error("IFTB table majorVersion != 0, will not read");
+        return error("majorVersion != 0, will not read");
     readObject(is, minorVersion);
     if (minorVersion != 1)
-        throw std::runtime_error("IFTB table minorVersion != 1, will not read");
+        return error("minorVersion != 1, will not read");
     readObject<uint32_t>(is);  // reserved
     readObject(is, id0);
     readObject(is, id1);
@@ -184,6 +193,9 @@ void table_IFTB::decompile(std::istream &is, uint32_t offset) {
             }
         }
     }
+    if (is.fail())
+        return error("decompile stream read failure");
+    return true;
 }
 
 void table_IFTB::dump(std::ostream &os, bool full) {
@@ -221,4 +233,26 @@ void table_IFTB::dump(std::ostream &os, bool full) {
     }
     os << "filesURI: " << filesURI << std::endl;
     os << "rangeFileURI: " << rangeFileURI << std::endl;
+}
+
+std::string table_IFTB::getChunkURI(uint16_t idx) {
+    char buf[10];
+    uint8_t digit;
+    size_t pos = 0, lastPos = 0;
+    snprintf(buf, sizeof(buf), "%08x", (int) idx);
+
+    std::string t;
+    while ((pos = filesURI.find('$', pos)) != std::string::npos) {
+        t += filesURI.substr(lastPos, pos-lastPos);
+        digit = (uint8_t) filesURI[pos+1] - 48;
+        if (digit > 8 || digit <= 0) {
+            error("Invalid filesURI string in IFTB table");
+            t.clear();
+            return t;
+        }
+        t += buf[8 - digit];
+        lastPos = pos = pos + 2;
+    }
+    t += filesURI.substr(lastPos);
+    return t;
 }

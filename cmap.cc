@@ -35,7 +35,7 @@ bool readcmap(std::istream &is, uint32_t offset,
         }
     }
     if (candidateOffset == 0) {
-        std::cerr << "No appropriate cmap subtable" << std::endl;
+        std::cerr << "cmap error: No appropriate subtable" << std::endl;
         return false;
     }
     is.seekg(candidateOffset);
@@ -69,7 +69,7 @@ bool readcmap(std::istream &is, uint32_t offset,
             if (s.startCode > s.endCode) {
                 std::cerr << "cmap format 4 segment codes out of order";
                 std::cerr << std::endl;
-                continue;
+                return false;
             }
             for (uint32_t c = s.startCode; c <= s.endCode; c++) {
                 uint16_t gid;
@@ -83,7 +83,7 @@ bool readcmap(std::istream &is, uint32_t offset,
                 if (gidMap && gid >= gidMap->size()) {
                     std::cerr << "cmap format 4 bad gid value";
                     std::cerr << std::endl;
-                    break;
+                    return false;
                 }
                 if (gidMap) {
                     uint16_t ck = (*gidMap)[gid];
@@ -107,14 +107,14 @@ bool readcmap(std::istream &is, uint32_t offset,
             if (startCharCode > endCharCode) {
                 std::cerr << "cmap format 12 char codes out of order";
                 std::cerr << std::endl;
-                continue;
+                return false;
             }
             for (uint32_t c = startCharCode; c <= endCharCode; c++) {
                 uint16_t gid = startGlyphID + c - startCharCode;
                 if (gidMap && gid >= gidMap->size()) {
                     std::cerr << "cmap format 12 bad gid value";
                     std::cerr << std::endl;
-                    break;
+                    return false;
                 }
                 if (gidMap) {
                     uint16_t ck = (*gidMap)[gid];
@@ -125,7 +125,12 @@ bool readcmap(std::istream &is, uint32_t offset,
             }
         }
     } else {
-        std::cerr << "Error: Chosen cmap subtable has mis-matching format ";
+        std::cerr << "cmap error: Chosen subtable has mis-matching format";
+        std::cerr << format << std::endl;
+        return false;
+    }
+    if (is.fail()) {
+        std::cerr << "cmap error: Stream read failure";
         std::cerr << format << std::endl;
         return false;
     }
