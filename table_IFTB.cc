@@ -1,6 +1,9 @@
 #include "table_IFTB.h"
 
 #include <iomanip>
+#include <set>
+
+#include "tag.h"
 
 void table_IFTB::writeChunkSet(std::ostream &os) {
     uint8_t u8 = 0;
@@ -28,6 +31,42 @@ void table_IFTB::dumpChunkSet(std::ostream &os) {
         }
     }
     os << std::endl;
+}
+
+bool table_IFTB::getMissingChunks(const std::vector<uint32_t> &unicodes,
+                                  const std::vector<uint32_t> &features,
+                                  std::vector<uint16_t> &cl) {
+    std::set<uint16_t> cks;
+    uint16_t ck;
+    for (auto cp: unicodes) {
+        auto i = uniMap.find(cp);
+        if (i == uniMap.end())
+            continue;
+        ck = i->second;
+        if (!chunkSet[ck])
+            cks.emplace(ck);
+    }
+    for (auto feat: features) {
+        auto i = featureMap.find(feat);
+        if (i == featureMap.end())
+            continue;
+        ck = i->second.startIndex - 1;
+        for (auto r: i->second.ranges) {
+            ck++;
+            assert(r.first <= r.second);
+            for (uint16_t j = r.first; j <= r.second; j++) {
+                if (chunkSet[j] || cks.find(j) != cks.end()) {
+                    cks.emplace(ck);
+                    break;
+                }
+            }
+        }
+    }
+
+    cl.clear();
+    for (auto c: cks)
+        cl.push_back(c);
+    return true;
 }
 
 std::pair<uint32_t, uint32_t> table_IFTB::getChunkRange(uint16_t cidx) {

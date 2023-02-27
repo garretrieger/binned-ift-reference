@@ -1,11 +1,11 @@
 
-#include <ctime>
 #include <cstring>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <random>
 
 #include <woff2/encode.h>
 
@@ -182,6 +182,7 @@ void chunker::process_feature_candidates(uint32_t feat, set &gids,
             break;
         } else if (j->second.size < size) {
             cidx = i;
+            size = j->second.size;
         }
     }
     if (add) {
@@ -728,8 +729,8 @@ int chunker::process(std::string &input_string) {
         fchunks.emplace(0, std::move(base));
         for (auto &i: f.second) {
             if (v.size() > 0 && last_gid != i.first) {
-                process_feature_candidates(f.first, gids, last_gid, fchunks,
-                                           v);
+                process_feature_candidates(f.first, gids, last_gid,
+                                           fchunks, v);
                 v.clear();
             }
             last_gid = i.first;
@@ -827,13 +828,15 @@ int chunker::process(std::string &input_string) {
     hb_map_keys(all_gids, scratch2.s);
     assert(scratch1 == scratch2);
 
+    std::random_device rd;
+    std::uniform_int_distribution<uint32_t> dist;
     srand(time(NULL));
 
     table_IFTB tiftb;
-    tiftb.id0 = rand();
-    tiftb.id1 = rand();
-    tiftb.id2 = rand();
-    tiftb.id3 = rand();
+    tiftb.id0 = dist(rd);
+    tiftb.id1 = dist(rd);
+    tiftb.id2 = dist(rd);
+    tiftb.id3 = dist(rd);
     tiftb.CFFCharStringsOffset = cff_charstrings_offset;
     tiftb.setChunkCount(chunks.size());
     tiftb.chunkSet[0] = true;

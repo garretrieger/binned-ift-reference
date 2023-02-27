@@ -9,10 +9,11 @@
 #pragma once
 
 class iftb_client {
+    friend bool randtest(std::string &s, uint32_t iterations);
 public:
     iftb_client() {}
-    bool loadFont(std::string &s);
-    bool loadFont(char *buf, size_t length);
+    bool loadFont(std::string &s, bool keepGIDMap = false);
+    bool loadFont(char *buf, size_t length, bool keepGIDMap = false);
     bool hasFont() { return fontData.size() > 0; }
     bool failure() { return failed; }
     bool error(const char *m) {
@@ -21,8 +22,8 @@ public:
         return false;
     }
     uint16_t getChunkCount();
-    bool setPending(std::vector<uint32_t> &unicodes,
-                    std::vector<uint32_t> &features);
+    bool setPending(const std::vector<uint32_t> &unicodes,
+                    const std::vector<uint32_t> &features);
     bool getPendingChunkList(std::vector<uint16_t> &cl);
     std::string getRangeFileURI();
     std::string getChunkURI(uint16_t cidx);

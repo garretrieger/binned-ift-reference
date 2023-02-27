@@ -1,4 +1,4 @@
-#include <unordered_map>
+#include <map>
 #include <string>
 #include <vector>
 #include <cassert>
@@ -22,18 +22,21 @@ struct FeatureMap {
 
 struct table_IFTB {
     friend class chunker;
+    friend bool randtest(std::string &s, uint32_t iterations);
 public:
     uint16_t getChunkCount() { return (uint16_t) chunkCount; }
     std::pair<uint32_t, uint32_t> getChunkRange(uint16_t cidx);
     std::string getRangeFileURI() { return rangeFileURI; }
     std::string getChunkURI(uint16_t idx);
-    bool addcmap(std::istream &i, uint32_t offset = 0,
-                 bool keepGIDMap = false) {
-        bool r = readcmap(i, offset, uniMap, &gidMap);
+    bool addcmap(std::istream &i, bool keepGIDMap = false) {
+        bool r = readcmap(i, uniMap, &gidMap);
         if (r && !keepGIDMap)
             gidMap.clear();
         return r;
     }
+    bool getMissingChunks(const std::vector<uint32_t> &unicodes,
+                          const std::vector<uint32_t> &features,
+                          std::vector<uint16_t> &cl);
     void dumpChunkSet(std::ostream &os);
     void writeChunkSet(std::ostream &os);
     void setChunkCount(uint32_t cc) {
@@ -73,7 +76,7 @@ private:
     uint32_t chunkCount {0};
     std::vector<bool> chunkSet;
     std::vector<uint16_t> gidMap;
-    std::unordered_map<uint32_t, FeatureMap> featureMap;
+    std::map<uint32_t, FeatureMap> featureMap;
     std::vector<uint32_t> chunkOffsets;
     std::string filesURI, rangeFileURI;
     std::unordered_map<uint32_t, uint16_t> uniMap;

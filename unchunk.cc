@@ -224,6 +224,13 @@ uint32_t decodeBuffer(char *buf, uint32_t length, std::string &s,
         } else {
             tg = 0;
         }
+    } else {
+        if (tg == 0x00010000 || tg == tag("OTTO") || tg == tag("IFTB")) {
+            uint32_t reserve = (uint32_t) ((float) length * (1 + reserveExtra));
+            s.reserve(reserve);
+        }
+        s.resize(length);
+        memcpy(s.data(), buf, length);
     }
     return tg;
 }

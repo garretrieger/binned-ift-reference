@@ -14,6 +14,7 @@
 #include "sfnt.h"
 #include "tag.h"
 #include "streamhelp.h"
+#include "randtest.h"
 
 std::string loadPathAsString(std::filesystem::path &fpath) {
     std::ifstream ifs(fpath, std::ios::binary);
@@ -111,6 +112,18 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
                 dumpChunk(std::cerr, css);
             }
         }
+    } else if (program.is_subcommand_used("stress-test")) {
+        auto stresstest = program.at<argparse::ArgumentParser>("stress-test");
+        std::filesystem::path fpath = stresstest.get<std::string>("base_file");
+        std::string fs = loadPathAsString(fpath);
+
+        if (randtest(fs)) {
+            std::cerr << "File passed stress tests" << std::endl;
+            r = 0;
+        } else {
+            std::cerr << "File failed stress tests" << std::endl;
+            r = 1;
+        }
     } else {
         std::cerr << "Error: No command specified" << std::endl;
         std::cerr << program;
@@ -169,9 +182,16 @@ int main(int argc, char **argv) {
               .default_value(false)
               .implicit_value(true);
 
+    argparse::ArgumentParser stresstest("stress-test");
+    stresstest.add_description("Test binning algorithm against random "
+                               "codepoint/feature combinations");
+    stresstest.add_argument("base_file")
+              .help("The IFTB (binned) input file");
+
     program.add_subparser(process);
     program.add_subparser(check);
     program.add_subparser(dumpchunks);
+    program.add_subparser(stresstest);
 
     try {
         program.parse_args(argc, argv);

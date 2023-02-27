@@ -38,7 +38,7 @@ uint32_t sfnt::getTableOffset(uint32_t tg, uint32_t &length) {
 
 bool sfnt::read() {
     /* Read and validate version */
-    ss.seekg(0, std::ios::beg);
+    ss.seekg(0);
     readObject(ss, version);
     switch (version) {
         case 0x00010000: /* 1.0 */
@@ -55,7 +55,7 @@ bool sfnt::read() {
     readObject(ss, numTables);
 
     // header checksum
-    ss.seekg(0, std::ios::beg);
+    ss.seekg(0);
     uint32_t nLongs = header_size / 4;
     while (nLongs--)
         headerSum += readObject<uint32_t>(ss);
@@ -94,7 +94,7 @@ bool sfnt::write(bool writeHead) {
     for (auto &[tg, table]: directory) {
         if (tg == T_HEAD)
             headTableOffset = table.offset;
-        ss.seekp(table.entryOffset, std::ios::beg);
+        ss.seekp(table.entryOffset);
         writeObject(ss, tg);
         writeObject(ss, table.checksum);
         writeObject(ss, table.offset);
@@ -107,7 +107,7 @@ bool sfnt::write(bool writeHead) {
     if (writeHead) {
         if (headTableOffset == 0)
             return error("No head table found");
-        ss.seekp(headTableOffset + head_adjustment_offset, std::ios::beg);
+        ss.seekp(headTableOffset + head_adjustment_offset);
         writeObject(ss, checkSumAdjustment);
     }
     if (ss.fail())
@@ -146,7 +146,7 @@ bool sfnt::calcTableChecksum(const Table &table, uint32_t &checksum,
 
     if (is_head) {
         /* Adjust sum to ignore head.checkSumAdjustment field */
-        ss.seekg(table.offset + head_adjustment_offset, std::ios::beg);
+        ss.seekg(table.offset + head_adjustment_offset);
         readObject(ss, headAdjustment);
         checksum -= headAdjustment;
     }
@@ -234,7 +234,7 @@ bool sfnt::checkSums(bool full) {
         good = false;
         std::cerr << "Warning: No head table found" << std::endl;
     } else {
-        ss.seekg(headTableOffset + head_adjustment_offset, std::ios::beg);
+        ss.seekg(headTableOffset + head_adjustment_offset);
         readObject(ss, checkSumAdjustment);
     }
 

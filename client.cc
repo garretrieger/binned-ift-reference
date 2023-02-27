@@ -2,11 +2,11 @@
 #include "streamhelp.h"
 #include "tag.h"
 
-bool iftb_client::loadFont(std::string &s) {
-    return loadFont(s.data(), s.length());
+bool iftb_client::loadFont(std::string &s, bool keepGIDMap) {
+    return loadFont(s.data(), s.length(), keepGIDMap);
 }
 
-bool iftb_client::loadFont(char *buf, size_t length) {
+bool iftb_client::loadFont(char *buf, size_t length, bool keepGIDMap) {
     uint32_t tg = decodeBuffer(buf, length, fontData, extraPercent());
     if (tg != 0x00010000 && tg != tag("OTTO") && tg != tag("IFTC"))
         return error("Unrecognized font type.");
@@ -16,15 +16,23 @@ bool iftb_client::loadFont(char *buf, size_t length) {
         failed = true;
         return false;
     }
-    
+
     simplestream ss;
 
     if (!sf.getTableStream(ss, T_IFTB))
         return error("No IFTB table in font");
-   
+
     if (!tiftb.decompile(ss)) {
         failed = true;
-        return false; 
+        return false;
+    }
+
+    if (!sf.getTableStream(ss, T_CMAP))
+        return error("No cmap table in font");
+
+    if (!tiftb.addcmap(ss, keepGIDMap)) {
+        failed = true;
+        return false;
     }
 
     return true;
@@ -36,12 +44,22 @@ uint16_t iftb_client::getChunkCount() {
     return tiftb.getChunkCount();
 }
 
-bool iftb_client::setPending(std::vector<uint32_t> &unicodes,
-                             std::vector<uint32_t> &features) {
-    return true;
+bool iftb_client::setPending(const std::vector<uint32_t> &unicodes,
+                             const std::vector<uint32_t> &features) {
+    if (!hasFont() or failed)
+        return false;
+    return tiftb.getMissingChunks(unicodes, features,
+                                  pendingChunks);
 }
 
 bool iftb_client::getPendingChunkList(std::vector<uint16_t> &cl) {
+    if (!hasFont() or failed)
+        return false;
+    if (pendingChunks.size() == 0)
+        return false;
+    cl.clear();
+    std::copy(pendingChunks.begin(), pendingChunks.end(),
+              std::back_inserter(cl));
     return true;
 }
 
