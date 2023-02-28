@@ -5,14 +5,16 @@
 
 #include "tag.h"
 
-void table_IFTB::writeChunkSet(std::ostream &os) {
+void table_IFTB::writeChunkSet(std::ostream &os, bool seekTo) {
     uint8_t u8 = 0;
+    if (seekTo)
+        os.seekp(50);
     for (int i = 0; i < chunkCount; i++) {
         if (i && i % 8 == 0) {
             writeObject(os, u8);
             u8 = 0;
         }
-        u8 = (u8 << 1) + chunkSet[i] ? 1 : 0;
+        u8 = (u8 << 1) | (chunkSet[i] ? 1 : 0);
     }
     if (chunkCount % 8 != 0) {
         writeObject(os, u8);
@@ -35,8 +37,8 @@ void table_IFTB::dumpChunkSet(std::ostream &os) {
 
 bool table_IFTB::getMissingChunks(const std::vector<uint32_t> &unicodes,
                                   const std::vector<uint32_t> &features,
-                                  std::vector<uint16_t> &cl) {
-    std::set<uint16_t> cks;
+                                  std::set<uint16_t> &cks) {
+    cks.clear();
     uint16_t ck;
     for (auto cp: unicodes) {
         auto i = uniMap.find(cp);
@@ -62,10 +64,6 @@ bool table_IFTB::getMissingChunks(const std::vector<uint32_t> &unicodes,
             }
         }
     }
-
-    cl.clear();
-    for (auto c: cks)
-        cl.push_back(c);
     return true;
 }
 
@@ -85,13 +83,13 @@ uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
     writeObject(os, majorVersion);
     writeObject(os, minorVersion);
     writeObject(os, (uint32_t) 0);  // reserved
-    writeObject(os, id0);
-    writeObject(os, id1);
-    writeObject(os, id2);
-    writeObject(os, id3);
+    writeObject(os, id[0]);
+    writeObject(os, id[1]);
+    writeObject(os, id[2]);
+    writeObject(os, id[3]);
     writeObject(os, flags);
     writeObject(os, chunkCount);
-    writeObject(os, (uint32_t) gidMap.size());
+    writeObject(os, glyphCount);
     writeObject(os, CFFCharStringsOffset);
     relOffsetsOffset = (uint32_t) os.tellp();
     writeObject(os, gidMapTableOffset);
@@ -110,7 +108,7 @@ uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
     writeObject(os, (uint8_t) 0);  // Null terminator
     gidMapTableOffset = ((uint32_t) os.tellp()) - offset;
     bool writing = false;
-    for (uint32_t i = 0; i < gidMap.size(); i++) {
+    for (uint32_t i = 0; i < glyphCount; i++) {
         if (!writing && gidMap[i] == 0)
             continue;
         else if (!writing) {
@@ -152,7 +150,6 @@ uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
 bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
     uint32_t gidMapTableOffset, chunkOffsetTableOffset;
     uint32_t featureMapTableOffset;
-    uint32_t gidCount;
     uint16_t firstMappedGid;
     is.seekg(offset);
     readObject(is, majorVersion);
@@ -162,13 +159,13 @@ bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
     if (minorVersion != 1)
         return error("minorVersion != 1, will not read");
     readObject<uint32_t>(is);  // reserved
-    readObject(is, id0);
-    readObject(is, id1);
-    readObject(is, id2);
-    readObject(is, id3);
+    readObject(is, id[0]);
+    readObject(is, id[1]);
+    readObject(is, id[2]);
+    readObject(is, id[3]);
     readObject(is, flags);
     readObject(is, chunkCount);
-    readObject(is, gidCount);
+    readObject(is, glyphCount);
     readObject(is, CFFCharStringsOffset);
     readObject(is, gidMapTableOffset);
     readObject(is, chunkOffsetTableOffset);
@@ -189,6 +186,7 @@ bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
     }
     readObject(is, u8);
     filesURI.resize(u8);
+    // XXX convert these to read()s
     for (int i = 0; i < u8; i++)
         readObject(is, filesURI[i]);
     readObject<uint8_t>(is);  // Null terminator
@@ -199,7 +197,7 @@ bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
     readObject<uint8_t>(is);  // Null terminator
     is.seekg(offset + gidMapTableOffset);
     readObject(is, firstMappedGid);
-    for (uint32_t i = 0; i < gidCount; i++) {
+    for (uint32_t i = 0; i < glyphCount; i++) {
         if (i < firstMappedGid)
             gidMap.push_back(0);
         else {
@@ -243,10 +241,10 @@ void table_IFTB::dump(std::ostream &os, bool full) {
     char c = os.fill();
     std::streamsize w = os.width();
     os << "ID: " << std::setfill('0') << std::setw(8) << std::right;
-    os << std::hex << id0 << " " << id1 << " " << id2 << " " << id3;
+    os << std::hex << id[0] << " " << id[1] << " " << id[2] << " " << id[3];
     os << std::dec << std::setfill(c) << std::setw(w) << std::endl;
     os << "chunkCount: " << chunkCount << std::endl;
-    os << "gidCount: " << gidMap.size() << std::endl;
+    os << "glyphCount: " << glyphCount << std::endl;
     dumpChunkSet(os);
     if (full) {
         os << "gidMap: ";

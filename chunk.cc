@@ -8,7 +8,7 @@
 #include "tag.h"
 
 void chunk::compile(std::ostream &os, uint16_t idx,
-                    uint32_t id0, uint32_t id1, uint32_t id2, uint32_t id3,
+                    uint32_t *id,
                     uint32_t table1, std::vector<glyphrec> &recs1,
                     uint32_t table2, std::vector<glyphrec> &recs2,
                     uint32_t offset) {
@@ -17,10 +17,10 @@ void chunk::compile(std::ostream &os, uint16_t idx,
     os.seekp(offset);
     writeObject(os, tag("IFTC"));
     writeObject(os, (uint32_t) 0);  // reserved
-    writeObject(os, id0);
-    writeObject(os, id1);
-    writeObject(os, id2);
-    writeObject(os, id3);
+    writeObject(os, id[0]);
+    writeObject(os, id[1]);
+    writeObject(os, id[2]);
+    writeObject(os, id[3]);
     writeObject(os, (uint32_t) idx);
     uint32_t bloffset = (uint32_t) os.tellp();
     writeObject(os, (uint32_t) 0);  // length

@@ -1,5 +1,6 @@
 #include <map>
 #include <string>
+#include <set>
 #include <vector>
 #include <cassert>
 
@@ -36,9 +37,9 @@ public:
     }
     bool getMissingChunks(const std::vector<uint32_t> &unicodes,
                           const std::vector<uint32_t> &features,
-                          std::vector<uint16_t> &cl);
+                          std::set<uint16_t> &cl);
     void dumpChunkSet(std::ostream &os);
-    void writeChunkSet(std::ostream &os);
+    void writeChunkSet(std::ostream &os, bool seekTo = false);
     void setChunkCount(uint32_t cc) {
         chunkCount = cc;
         chunkSet.clear();
@@ -62,18 +63,31 @@ public:
         else
             writeObject(o, i8);
     }
+    uint32_t getGlyphCount() { return glyphCount; }
     unsigned int compile(std::ostream &o, uint32_t offset = 0);
     bool decompile(std::istream &i, uint32_t offset = 0);
     void dump(std::ostream &o, bool full = false);
+    uint32_t getCharStringOffset() { return CFFCharStringsOffset; }
+    bool updateChunkSet(std::set<uint16_t> &chunks) {
+        for (auto idx: chunks) {
+            if (idx >= chunkCount)
+                return false;
+            if (chunkSet[idx])
+                return false;
+            chunkSet[idx] = true;
+        }
+        return true;
+    }
+    uint32_t *getID() { return id; }
 private:
     bool error(const char *m) {
         std::cerr << "IFTB table error: " << m << std::endl;
         return false;
     }
     uint16_t majorVersion {0}, minorVersion {1}, flags {0};
-    uint32_t id0, id1, id2, id3;
+    uint32_t id[4];
     uint32_t CFFCharStringsOffset {0};
-    uint32_t chunkCount {0};
+    uint32_t chunkCount {0}, glyphCount {0};
     std::vector<bool> chunkSet;
     std::vector<uint16_t> gidMap;
     std::map<uint32_t, FeatureMap> featureMap;

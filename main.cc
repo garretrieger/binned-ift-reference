@@ -9,6 +9,7 @@
 #include "sanitize.h"
 #include "config.h"
 #include "chunker.h"
+#include "client.h"
 #include "unchunk.h"
 #include "table_IFTB.h"
 #include "sfnt.h"
@@ -16,17 +17,22 @@
 #include "streamhelp.h"
 #include "randtest.h"
 
-std::string loadPathAsString(std::filesystem::path &fpath) {
+std::string loadPathAsString(std::filesystem::path &fpath,
+                             bool decompress = true) {
+    uint32_t tg;
     std::ifstream ifs(fpath, std::ios::binary);
     std::stringstream ss;
     ss << ifs.rdbuf();
     std::string s = ss.str();
     ifs.close();
 
-    uint32_t tg = decodeBuffer(NULL, 0, s);
+    if (decompress)
+        tg = decodeBuffer(NULL, 0, s);
+    else
+        tg = tagFromBuffer(s.data());
 
     if (tg != 0x00010000 && tg != tag("OTTO") &&
-        tg != tag("IFTC") && tg != tag("IFTB"))
+        tg != tag("IFTC") && tg != tag("IFTB") && tg != tag("IFTZ"))
         throw std::runtime_error("Error: Unrecognized file/chunk type");
 
     return s;
@@ -112,6 +118,73 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
                 dumpChunk(std::cerr, css);
             }
         }
+    } else if (program.is_subcommand_used("merge")) {
+        auto merge = program.at<argparse::ArgumentParser>("merge");
+        auto chunks = merge.get<std::vector<uint16_t>>("indexes");
+        std::filesystem::path fpath = merge.get<std::string>("base_file");
+        std::string fs = loadPathAsString(fpath);
+
+        iftb_client cl;
+        if (!cl.loadFont(fs))
+            std::exit(1);
+
+        std::filesystem::path ocwd = std::filesystem::current_path();
+        std::filesystem::current_path(fpath.parent_path());
+        std::string cs;
+        if (merge["-r"] == true) {
+            std::filesystem::path rpath = cl.getRangeFileURI();
+            std::ifstream rs(rpath, std::ios::binary);
+            for (auto cidx: chunks) {
+                if (cidx >= cl.getChunkCount()) {
+                    std::cerr << cidx << " is greater than Chunk Count ";
+                    std::cerr << cl.getChunkCount() << std::endl;
+                    continue;
+                }
+                auto [cstart, cend] = cl.getChunkRange(cidx);
+                uint32_t clen = cend - cstart;
+                cs.resize(clen);
+                rs.seekg(cstart);
+                rs.read(cs.data(), clen);
+                if (!cl.addChunk(cidx, cs, true)) {
+                    std::cerr << "Problem merging chunk " << cidx;
+                    std::cerr << ", stopping." << std::endl;
+                    std::exit(1);
+                }
+            }
+        } else {
+            for (auto cidx: chunks) {
+                if (cidx >= cl.getChunkCount()) {
+                    std::cerr << cidx << " is greater than Chunk Count ";
+                    std::cerr << cl.getChunkCount() << std::endl;
+                    continue;
+                }
+                std::filesystem::path cp = cl.getChunkURI(cidx);
+                cs = loadPathAsString(cp, false);
+                if (!cl.addChunk(cidx, cs, true)) {
+                    std::cerr << "Problem merging chunk " << cidx;
+                    std::cerr << ", stopping." << std::endl;
+                    std::exit(1);
+                }
+            }
+        }
+        if (!cl.canMerge()) {
+            std::cerr << "Client reports it can't merge, stopping";
+            std::cerr << std::endl;
+            std::exit(1);
+        }
+        if (!cl.merge(merge["-s"] == true)) {
+            std::cerr << "Problem merging, stopping" << std::endl;
+            std::exit(1);
+        }
+        std::filesystem::current_path(ocwd);
+        std::string &nfs = cl.getFontAsString();
+        std::filesystem::path opath = merge.get<std::string>("-o");
+        std::ofstream os;
+        os.open(opath, std::ios::out | std::ios::binary);
+        os.write(nfs.data(), nfs.size());
+        os.close();
+        std::cerr << "Wrote output file " << opath << std::endl;
+        r = 0;
     } else if (program.is_subcommand_used("stress-test")) {
         auto stresstest = program.at<argparse::ArgumentParser>("stress-test");
         std::filesystem::path fpath = stresstest.get<std::string>("base_file");
@@ -172,15 +245,36 @@ int main(int argc, char **argv) {
     dumpchunks.add_description("Show the fields in a set of chunks, by index");
     dumpchunks.add_argument("base_file")
               .help("The IFTB (binned) input file");
+    dumpchunks.add_argument("-r", "--by-range")
+              .help("Retrieve the chunk from the range file")
+              .default_value(false)
+              .implicit_value(true);
     dumpchunks.add_argument("indexes")
               .help("A list of positive integer indexes")
               .nargs(argparse::nargs_pattern::at_least_one)
               .required()
               .scan<'u', uint16_t>();
-    dumpchunks.add_argument("-r", "--by-range")
-              .help("Retrieve the chunk from the range file")
-              .default_value(false)
-              .implicit_value(true);
+
+    argparse::ArgumentParser merge("merge");
+    merge.add_description("Merge chunks by index into the base");
+    merge.add_argument("base_file")
+         .help("The IFTB (binned) input file");
+    merge.add_argument("-o", "--output-filename")
+         .help("(Mandatory) filename for merged file")
+         .required();
+    merge.add_argument("indexes")
+         .help("A list of positive integer indexes")
+         .nargs(argparse::nargs_pattern::at_least_one)
+         .required()
+         .scan<'u', uint16_t>();
+    merge.add_argument("-r", "--by-range")
+         .help("Retrieve the chunk from the range file")
+         .default_value(false)
+         .implicit_value(true);
+    merge.add_argument("-s", "--for-caching")
+         .help("Set the sfnt version to IFTB (instead of the OpenType version)")
+         .default_value(false)
+         .implicit_value(true);
 
     argparse::ArgumentParser stresstest("stress-test");
     stresstest.add_description("Test binning algorithm against random "
@@ -190,6 +284,7 @@ int main(int argc, char **argv) {
 
     program.add_subparser(process);
     program.add_subparser(check);
+    program.add_subparser(merge);
     program.add_subparser(dumpchunks);
     program.add_subparser(stresstest);
 

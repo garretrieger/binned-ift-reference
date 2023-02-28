@@ -370,7 +370,7 @@ int chunker::process(std::string &input_string) {
             assert(u16 == 1);
             readObject(sis, u16);
             assert(u16 == 0);
-            sis.seekg(16);
+            sis.seekg(12);
             readObject(sis, u16);
             assert(u16 == glyph_count);
             readObject(sis, u16);
@@ -516,7 +516,7 @@ int chunker::process(std::string &input_string) {
     base.gids.add(0);
 
     // We now have the starting point of the base unicode set and its
-    // corresponding set of gids, from the closure. remaining_gids is
+    // corresponding set of gids from the closure. remaining_gids is
     // the set of gids under the closure of all unicode points and the
     // features we aren't subsetting, minus the initial baseline unicodes
     // and any gid with a direct unicode encoding. These are the gids we
@@ -608,6 +608,7 @@ int chunker::process(std::string &input_string) {
         scratch2.copy(scratch1);
         scratch2.intersect(i.gids);
         if (!scratch2.is_empty()) {
+            // XXX To be safe this might need to be a while loop
             gid = HB_SET_VALUE_INVALID;
             while (scratch2.next(gid)) {
                 if (conf.verbosity() > 2) {
@@ -833,13 +834,14 @@ int chunker::process(std::string &input_string) {
     srand(time(NULL));
 
     table_IFTB tiftb;
-    tiftb.id0 = dist(rd);
-    tiftb.id1 = dist(rd);
-    tiftb.id2 = dist(rd);
-    tiftb.id3 = dist(rd);
+    tiftb.id[0] = dist(rd);
+    tiftb.id[1] = dist(rd);
+    tiftb.id[2] = dist(rd);
+    tiftb.id[3] = dist(rd);
     tiftb.CFFCharStringsOffset = cff_charstrings_offset;
     tiftb.setChunkCount(chunks.size());
     tiftb.chunkSet[0] = true;
+    tiftb.glyphCount = glyph_count;
     for (uint32_t i = 0; i < glyph_count; i++)
         tiftb.gidMap.push_back(hb_map_get(all_gids, i));
 
@@ -886,8 +888,8 @@ int chunker::process(std::string &input_string) {
         }
         css.str("");
         css.clear();
-        c.compile(css, idx, tiftb.id0, tiftb.id1, tiftb.id2, tiftb.id3,
-                  table1, primaryRecs, table2, secondaryRecs);
+        c.compile(css, idx, tiftb.id, table1, primaryRecs, table2,
+                  secondaryRecs);
         std::string zchunk = chunk::encode(css);
         cfile.open(conf.chunkPath(idx), std::ios::trunc | std::ios::binary);
         cfile.write(zchunk.data(), zchunk.size());
@@ -964,6 +966,7 @@ int chunker::process(std::string &input_string) {
     tiftb.rangeFileURI = conf.rangeFileURI();
 
     hb_face_t *fbldr = hb_face_builder_create();
+    hb_face_builder_set_font_type(fbldr, T_IFTB);
 
     std::vector<uint32_t> tagOrder;
     css.str("");
@@ -988,8 +991,8 @@ int chunker::process(std::string &input_string) {
     while (tables.next(tbl)) {
         if (tbl == tag("FFTM") || tbl == tag("DSIG"))
            continue;
-        if (tbl == T_CMAP || tbl == T_CFF || tbl == T_CFF2 || tbl == T_GLYF ||
-            tbl == T_LOCA || tbl == T_GVAR)
+        if (tbl == T_CMAP || tbl == T_CFF || tbl == T_CFF2 ||
+            tbl == T_GLYF || tbl == T_LOCA || tbl == T_GVAR)
             continue;
         hb_face_builder_add_table(fbldr, tbl,
                                   hb_face_reference_table(subface.f, tbl));
@@ -1016,7 +1019,6 @@ int chunker::process(std::string &input_string) {
     }
 
     tagOrder.push_back(HB_TAG_NONE);
-    hb_face_builder_set_font_type(fbldr, T_IFTB);
     hb_face_builder_sort_tables(fbldr, (hb_tag_t *)tagOrder.data());
 
     hb_blob_t *outblob = hb_face_reference_blob(fbldr);

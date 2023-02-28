@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include <limits>
+#include <sstream>
 
 #include <brotli/decode.h>
 #include <woff2/decode.h>
@@ -11,7 +12,15 @@
 #include "tag.h"
 #include "unchunk.h"
 
-bool merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
+bool merger::unpackChunks() {
+    for (auto &i: chunkData) {
+        if (!chunkAddRecs(i.first, i.second))
+            return false;
+    }
+    return true;
+}
+
+bool merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
     uint32_t glyphCount, table1, table2 = 0;
     uint32_t offset, lastOffset = 0;
     char *initialOffset;
@@ -19,25 +28,23 @@ bool merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
     uint8_t i8, tableCount;
     std::vector<uint16_t> gids;
     glyphrec gr;
-    simpleistream is;
+    std::istringstream is(cd);
 
-    is.rdbuf()->pubsetbuf(buf, len);
-
-    if (readObject<uint32_t>(is) != tag("TIFC"))
-        return chunkError(idx, "Initial bytes of chunk must be \"TIFC\"");
+    if (readObject<uint32_t>(is) != tag("IFTC"))
+        return chunkError(idx, "Initial bytes of chunk must be \"IFTC\"");
     if (readObject<uint32_t>(is) != 0)
         return chunkError(idx, "Reserved bytes in chunk must be 0");
-    if (readObject<uint32_t>(is) != id0)
+    if (readObject<uint32_t>(is) != id[0])
         return chunkError(idx, "ID mismatch (id0)");
-    if (readObject<uint32_t>(is) != id1)
+    if (readObject<uint32_t>(is) != id[1])
         return chunkError(idx, "ID mismatch (id1)");
-    if (readObject<uint32_t>(is) != id2)
+    if (readObject<uint32_t>(is) != id[2])
         return chunkError(idx, "ID mismatch (id2)");
-    if (readObject<uint32_t>(is) != id3)
+    if (readObject<uint32_t>(is) != id[3])
         return chunkError(idx, "ID mismatch (id3)");
     if (readObject<uint32_t>(is) != idx)
         return chunkError(idx, "Chunk index mismatch");
-    if (readObject<uint32_t>(is) != len)
+    if (readObject<uint32_t>(is) != cd.size())
         return chunkError(idx, "Chunk index mismatch");
     readObject(is, glyphCount);
     if (glyphCount > std::numeric_limits<uint16_t>::max())
@@ -52,9 +59,10 @@ bool merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
         readObject(is, table2);
     add_tables(table1, table2);
     readObject(is, lastOffset);
+    // XXX check here to ensure the offset + length is within the chunk length.
     for (auto i: gids) {
         readObject(is, offset);
-        gr.offset = buf + lastOffset;
+        gr.offset = cd.data() + lastOffset;
         gr.length = offset - lastOffset;
         glyphMap1.emplace(i, gr);
         lastOffset = offset;
@@ -62,7 +70,7 @@ bool merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
     if (tableCount == 2) {
         for (auto i: gids) {
             readObject(is, offset);
-            gr.offset = buf + lastOffset;
+            gr.offset = cd.data() + lastOffset;
             gr.length = offset - lastOffset;
             glyphMap2.emplace(i, gr);
             lastOffset = offset;
@@ -72,6 +80,163 @@ bool merger::chunkAddRecs(uint16_t idx, char *buf, uint32_t len) {
         return chunkError(idx, "Decompile stream read failure");
     return true;
 }
+
+uint32_t merger::calcLengthDiff(std::istream &is, uint32_t glyphCount, 
+                                std::map<uint16_t, glyphrec> &glyphMap) {
+    uint32_t ldiff = 0;
+    uint32_t arrayOff = is.tellg();
+    for (auto &i: glyphMap) {
+        uint16_t gid = i.first;
+        uint32_t start, end;
+        is.seekg(arrayOff + 4 * gid);
+        readObject(is, start);
+        readObject(is, end);
+        ldiff += i.second.length - (end - start);
+    }
+    return ldiff;
+}
+
+bool merger::copyGlyphData(std::iostream &s, uint32_t glyphCount,
+                            char *nbase, char *cbase, uint32_t ldiff,
+                            std::map<uint16_t, glyphrec> &glyphMap,
+                            uint32_t basediff) {
+    uint32_t off, nextOff, clen;
+    s.seekg(glyphCount * 4);
+    readObject(s, nextOff);
+    char *ctrailing = cbase + nextOff, *ntrailing = nbase + nextOff + ldiff;
+    // XXX Could reduce the number of memmove calls (but not the amount of
+    // data copied) by grouping the consecutive copies from ctrailing
+    for (int64_t i = glyphCount-1; i >= 0; i--) {
+        s.seekp((i + 1) * 4);
+        writeObject(s, (uint32_t) (ntrailing - nbase));
+        s.seekg(i * 4);
+        readObject(s, off);
+        ctrailing -= nextOff - off;
+        auto j = glyphMap.find(i);
+        if (j != glyphMap.end()) {
+            ntrailing -= j->second.length;
+            memmove(ntrailing, j->second.offset, j->second.length);
+        } else {
+            ntrailing -= nextOff - off;
+            if (ntrailing != ctrailing)
+                memmove(ntrailing, ctrailing, nextOff - off);
+        }
+        nextOff = off;
+    }
+    if (ctrailing - cbase != basediff || ntrailing - nbase != basediff) {
+        std::cerr << "Logic error merging chunks" << std::endl;
+        return false;
+    }
+    if (s.fail()) {
+        std::cerr << "Stream failure merging chunks" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+uint32_t merger::calcLayout(sfnt &sf, uint32_t numg, uint32_t cso) {
+    uint32_t ldiff;
+
+    charStringOff = cso;
+    glyphCount = numg;
+
+    if ((t1off = sf.getTableOffset(t1tag = T_CFF, t1clen)) != 0) {
+        has_cff = true;
+    } else if ((t1off = sf.getTableOffset(t1tag = T_CFF2,
+                                          t1clen)) != 0) {
+        has_cff = true;
+    } else if ((t1off = sf.getTableOffset(t1tag = T_GVAR,
+                                          t1clen)) != 0) {
+        ;
+    } else
+        t1tag = 0;
+
+    if (!has_cff) {
+        glyfcoff = sf.getTableOffset(T_GLYF, glyfclen);
+        if (glyfcoff == 0) {
+            std::cerr << "Error: No CFF or glyf table to update" << std::endl;
+            return false;
+        }
+        locacoff = sf.getTableOffset(T_GLYF, localen);
+        if (locacoff == 0) {
+            std::cerr << "Error: glyf table without loca table" << std::endl;
+            return false;
+        }
+    }
+    if (t1tag) {
+        sf.getTableStream(ss, t1tag);
+        if (has_cff) {
+            ss.seekg(charStringOff + 3);
+        } else {
+            // gvar
+            ss.seekg(16);
+            readObject(ss, gvarDataOff);
+        }
+        ldiff = calcLengthDiff(ss, glyphCount, has_cff ? glyphMap1 : glyphMap2);
+        t1nlen = t1clen + ldiff;
+    }
+    if (!has_cff) {
+        if (t1tag)
+            glyfnoff = ((t1off + t1nlen + 3) / 4) * 4;
+        else
+            glyfnoff = glyfcoff;
+
+        sf.getTableStream(ss, T_LOCA);
+        ss.seekg(0);
+        ldiff = calcLengthDiff(ss, glyphCount, glyphMap1);
+        glyfnlen = glyfclen + ldiff;
+        locanoff = ((glyfnoff + glyfnlen + 3) / 4) * 4;
+    }
+    if (has_cff)
+        fontend = ((t1off + t1nlen + 3) / 4) * 4;
+    else
+        fontend = ((locanoff + localen + 3) / 4) * 4;
+    return fontend;
+}
+
+bool merger::merge(sfnt &sf, char *oldbuf, char *newbuf) {
+    if (oldbuf != newbuf) {
+        if (has_cff)
+            memcpy(newbuf, oldbuf, t1off + charStringOff + 3 +
+                   (glyphCount + 1) * 4);
+        else if (t1tag)  // gvar
+            memcpy(newbuf, oldbuf, t1off + 20 + (glyphCount + 1) * 4);
+        else
+            memcpy(newbuf, oldbuf, glyfcoff);
+        sf.setBuffer(newbuf, fontend);
+    } else {
+        sf.setBuffer(oldbuf, fontend);
+    }
+    if (!has_cff) {
+        memmove(newbuf + locanoff, oldbuf + locacoff, localen);
+        ss.rdbuf()->pubsetbuf(newbuf + locanoff, localen);
+        if (!copyGlyphData(ss, glyphCount, newbuf + glyfnoff,
+                           oldbuf + glyfcoff, glyfnlen - glyfclen,
+                           glyphMap1, 0))
+            return false;
+        sf.adjustTable(T_LOCA, locanoff, localen, true);
+        sf.adjustTable(T_GLYF, glyfnoff, glyfnlen, true);
+    }
+    if (t1tag) {
+        // XXX deal with gvar padding
+        uint32_t dataoff;
+        if (has_cff) {
+            ss.rdbuf()->pubsetbuf(newbuf + t1off + charStringOff + 3,
+                                  (glyphCount + 1) * 4);
+            dataoff = t1off + charStringOff + 3 + (glyphCount + 1) * 4 - 1;
+        } else {  // gvar
+            ss.rdbuf()->pubsetbuf(newbuf + t1off + 20, (glyphCount + 1) * 4);
+            dataoff = t1off + gvarDataOff;
+        }
+        if (!copyGlyphData(ss, glyphCount, newbuf + dataoff,
+                           oldbuf + dataoff, t1nlen - t1clen,
+                           has_cff ? glyphMap1 : glyphMap2, has_cff ? 1 : 0))
+            return false;
+        sf.adjustTable(t1tag, t1off, t1nlen, true);
+    }
+    return true;
+}
+
 
 void dumpChunk(std::ostream &os, std::istream &is) {
     uint32_t u32, glyphCount, table1, table2 = 0, idx;

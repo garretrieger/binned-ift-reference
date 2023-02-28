@@ -45,7 +45,7 @@ public:
         from_max = c.from_max;
     }
     void compile(std::ostream &os, uint16_t idx,
-                 uint32_t id0, uint32_t id1, uint32_t id2, uint32_t id3,
+                 uint32_t *id,
                  uint32_t table1, std::vector<glyphrec> &recs1,
                  uint32_t table2, std::vector<glyphrec> &recs2,
                  uint32_t offset = 0);

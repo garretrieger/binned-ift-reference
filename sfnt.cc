@@ -39,8 +39,8 @@ uint32_t sfnt::getTableOffset(uint32_t tg, uint32_t &length) {
 bool sfnt::read() {
     /* Read and validate version */
     ss.seekg(0);
-    readObject(ss, version);
-    switch (version) {
+    readObject(ss, origTag);
+    switch (origTag) {
         case 0x00010000: /* 1.0 */
         // case TAG('t', 'r', 'u', 'e'):
         // case TAG('t', 'y', 'p', '1'):
@@ -51,6 +51,7 @@ bool sfnt::read() {
         default:
             return error("Unrecognized file type.");
     }
+    curTag = origTag;
 
     readObject(ss, numTables);
 
@@ -84,12 +85,27 @@ bool sfnt::read() {
     return true;
 }
 
-bool sfnt::write(bool writeHead) {
-    uint32_t totalsum = headerSum + otherRecordSum + otherTableSum;
+bool sfnt::write(bool asIFTB, bool writeHead) {
+    uint32_t totalsum;
     uint32_t headTableOffset = 0;
     uint32_t checkSumAdjustment;
     if (writeHead and sfntOnly)
         return error("Cannot write to head table in \"sfnt only\" mode");
+
+    headerSum -= curTag;
+    if (asIFTB) {
+        curTag = T_IFTB;
+    } else {
+        if (directory.find(T_GLYF) != directory.end())
+            curTag = 0x00010000;
+        else
+            curTag = tag("OTTO");
+    }
+    headerSum += curTag;
+    ss.seekp(0);
+    writeObject(ss, curTag);
+
+    totalsum = headerSum + otherRecordSum + otherTableSum;
 
     for (auto &[tg, table]: directory) {
         if (tg == T_HEAD)
@@ -115,19 +131,29 @@ bool sfnt::write(bool writeHead) {
     return true;
 }
 
-bool sfnt::adjustTable(uint32_t tg, const Table &table, bool rechecksum) {
+bool sfnt::adjustTable(uint32_t tg, uint32_t offset, uint32_t length,
+                       bool rechecksum) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     auto t = directory.find(tg);
     if (t == directory.end())
         return error("Can't find sfnt table to adjust");
 
-    t->second.offset = table.offset;
-    t->second.length = table.length;
+    t->second.offset = offset;
+    t->second.length = length;
     if (rechecksum)
-        if (!calcTableChecksum(table, t->second.checksum, tg == T_HEAD))
+        if (!calcTableChecksum(t->second, t->second.checksum, tg == T_HEAD))
             return false;
-    else
-        t->second.checksum = table.checksum;
+    return true;
+}
+
+bool sfnt::recalcTableChecksum(uint32_t tg) {
+    assert(Table::known_tables.find(tg) != Table::known_tables.end());
+    auto t = directory.find(tg);
+    if (t == directory.end())
+        return error("Can't find sfnt table to adjust");
+
+    if (!calcTableChecksum(t->second, t->second.checksum, tg == T_HEAD))
+        return false;
     return true;
 }
 

@@ -44,7 +44,7 @@ class sfnt {
         ss.rdbuf()->pubsetbuf(b, l);
     }
     bool read();
-    bool write(bool writeHead = true);
+    bool write(bool asIFTB, bool writeHead = true);
     bool has(uint32_t tg) {
         assert(Table::known_tables.find(tg) != Table::known_tables.end());
         return directory.find(tg) != directory.end();
@@ -52,7 +52,9 @@ class sfnt {
     bool getTableStream(simplestream &s, uint32_t tg);
     uint32_t getTableOffset(uint32_t tg, uint32_t &length);
 
-    bool adjustTable(uint32_t tag, const Table &table, bool rechecksum);
+    bool adjustTable(uint32_t tag, uint32_t offset, uint32_t length,
+                     bool rechecksum);
+    bool recalcTableChecksum(uint32_t tg);
     bool calcTableChecksum(const Table &table, uint32_t &checksum,
                            bool is_head=false);
     bool checkSums(bool full=false);
@@ -62,17 +64,17 @@ class sfnt {
         std::cerr << "OpenType/sfnt error: " << m << std::endl;
         return false;
     }
-    int32_t version = 0;
-    uint16_t numTables = 0;
     static const uint32_t header_size = sizeof(uint32_t) +
                                         sizeof(uint16_t) * 4;
     // head.checkSumAdjustment offset within head table
     static const uint32_t head_adjustment_offset = 2 * sizeof(uint32_t);
 
-    bool sfntOnly = false, isCff = false, isVariable = false;
-    uint32_t headerSum = 0, otherRecordSum = 0, otherTableSum = 0;
-    char *buffer = NULL;
-    uint32_t length = 0;
+    uint16_t numTables = 0;
+    bool sfntOnly {false};
+    uint32_t origTag {0}, curTag {0};
+    uint32_t headerSum {0}, otherRecordSum {0}, otherTableSum {0};
+    char *buffer {NULL};
+    uint32_t length {0};
     simplestream ss;
     std::unordered_map<uint32_t, Table> directory;
 };
