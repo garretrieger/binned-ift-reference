@@ -29,6 +29,7 @@ bool merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
     std::vector<uint16_t> gids;
     glyphrec gr;
     std::istringstream is(cd);
+    auto cdlen = cd.size();
 
     if (readObject<uint32_t>(is) != tag("IFTC"))
         return chunkError(idx, "Initial bytes of chunk must be \"IFTC\"");
@@ -59,11 +60,12 @@ bool merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
         readObject(is, table2);
     add_tables(table1, table2);
     readObject(is, lastOffset);
-    // XXX check here to ensure the offset + length is within the chunk length.
     for (auto i: gids) {
         readObject(is, offset);
         gr.offset = cd.data() + lastOffset;
         gr.length = offset - lastOffset;
+        if (offset > cdlen)
+            return chunkError(idx, "GID offset + length exceeds size");
         glyphMap1.emplace(i, gr);
         lastOffset = offset;
     }
@@ -72,6 +74,8 @@ bool merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
             readObject(is, offset);
             gr.offset = cd.data() + lastOffset;
             gr.length = offset - lastOffset;
+            if (offset > cdlen)
+                return chunkError(idx, "GID offset + length exceeds size");
             glyphMap2.emplace(i, gr);
             lastOffset = offset;
         }
@@ -157,7 +161,7 @@ uint32_t merger::calcLayout(sfnt &sf, uint32_t numg, uint32_t cso) {
             std::cerr << "Error: No CFF or glyf table to update" << std::endl;
             return false;
         }
-        locacoff = sf.getTableOffset(T_GLYF, localen);
+        locacoff = sf.getTableOffset(T_LOCA, localen);
         if (locacoff == 0) {
             std::cerr << "Error: glyf table without loca table" << std::endl;
             return false;
@@ -167,8 +171,7 @@ uint32_t merger::calcLayout(sfnt &sf, uint32_t numg, uint32_t cso) {
         sf.getTableStream(ss, t1tag);
         if (has_cff) {
             ss.seekg(charStringOff + 3);
-        } else {
-            // gvar
+        } else {  // gvar
             ss.seekg(16);
             readObject(ss, gvarDataOff);
         }
@@ -208,6 +211,10 @@ bool merger::merge(sfnt &sf, char *oldbuf, char *newbuf) {
         sf.setBuffer(oldbuf, fontend);
     }
     if (!has_cff) {
+        for (uint32_t i = locanoff + localen; i < fontend; i++)
+            *(newbuf + i) = 0;
+        for (uint32_t i = glyfnoff + glyfnlen; i < locanoff; i++)
+            *(newbuf + i) = 0;
         memmove(newbuf + locanoff, oldbuf + locacoff, localen);
         ss.rdbuf()->pubsetbuf(newbuf + locanoff, localen);
         if (!copyGlyphData(ss, glyphCount, newbuf + glyfnoff,
@@ -218,8 +225,10 @@ bool merger::merge(sfnt &sf, char *oldbuf, char *newbuf) {
         sf.adjustTable(T_GLYF, glyfnoff, glyfnlen, true);
     }
     if (t1tag) {
-        // XXX deal with gvar padding
         uint32_t dataoff;
+        for (uint32_t i = t1off + t1nlen; i < (has_cff) ? fontend : glyfnoff;
+             i++)
+            *(newbuf + i) = 0;
         if (has_cff) {
             ss.rdbuf()->pubsetbuf(newbuf + t1off + charStringOff + 3,
                                   (glyphCount + 1) * 4);

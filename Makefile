@@ -4,9 +4,11 @@ DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
 SRCS := chunker.cc config.cc main.cc chunk.cc table_IFTB.cc sfnt.cc sanitize.cc unchunk.cc cmap.cc client.cc randtest.cc
 OBJS := ${SRCS:.cc=.o}
+# CFLAGS := -I/home/skef/src/harfbuzz/src -g -fsanitize=address
 CFLAGS := -I/home/skef/src/harfbuzz/src -g
 CXXFLAGS := ${CFLAGS} -std=c++17
 LIBS := -lharfbuzz-subset -lharfbuzz -lyaml-cpp -lbrotlienc -lwoff2enc -lbrotlidec -lwoff2dec
+# LDFLAGS := -fsanitize=address -Wl,-rpath /home/skef/src/harfbuzz/build/src -L/home/skef/src/harfbuzz/build/src
 LDFLAGS := -Wl,-rpath /home/skef/src/harfbuzz/build/src -L/home/skef/src/harfbuzz/build/src
 
 all: iftb

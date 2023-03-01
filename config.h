@@ -9,15 +9,15 @@
 
 struct group_wrapper {
     virtual bool next(uint32_t &gid) = 0;
+    virtual ~group_wrapper() = default;
 };
 
 struct vec_wrapper : group_wrapper {
-    std::vector<uint32_t> &v;
-    std::vector<uint32_t>::iterator i;
     vec_wrapper(std::vector<uint32_t> &v) : v(v) {
         i = v.begin();
     }
-    virtual bool next(uint32_t &gid) {
+    virtual ~vec_wrapper() = default;
+    bool next(uint32_t &gid) override {
         if (i != v.end()) {
             gid = *i;
             i++;
@@ -25,12 +25,15 @@ struct vec_wrapper : group_wrapper {
         } else
             return false;
     }
+    std::vector<uint32_t> &v;
+    std::vector<uint32_t>::iterator i;
 };
 
 struct set_wrapper : group_wrapper {
+    virtual ~set_wrapper() = default;
     set &s;
     set_wrapper(set &s) : s(s) {}
-    virtual bool next(uint32_t &gid) {
+     bool next(uint32_t &gid) override {
         return s.next(gid);
     }
 };

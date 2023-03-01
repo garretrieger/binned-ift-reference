@@ -14,7 +14,7 @@ void table_IFTB::writeChunkSet(std::ostream &os, bool seekTo) {
             writeObject(os, u8);
             u8 = 0;
         }
-        u8 = (u8 << 1) | (chunkSet[i] ? 1 : 0);
+        u8 |= (chunkSet[i] ? 1 : 0) << (i % 8);
     }
     if (chunkCount % 8 != 0) {
         writeObject(os, u8);
@@ -172,16 +172,13 @@ bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
     readObject(is, featureMapTableOffset);
     uint8_t u8;
     chunkSet.resize(chunkCount);
-    uint32_t chunkBytes = chunkCount / 8;
-    if (chunkCount % 8 != 0)
-        chunkBytes += 1;
+    uint32_t chunkBytes = (chunkCount + 7) / 8;
     for (uint32_t i=0; i < chunkBytes; i++) {
         readObject(is, u8);
         for (int j = 0; j < 8; j++) {
             if (i * 8 + j >= chunkCount)
                 break;
-            chunkSet[i * 8 + j] = u8 & 1;
-            u8 >>= 1;
+            chunkSet[i * 8 + j] = u8 & (1 << j);
         }
     }
     readObject(is, u8);

@@ -350,8 +350,8 @@ int chunker::process(std::string &input_string) {
         locaBlob = hb_face_reference_table(subface.f, T_LOCA);
         unsigned int l;
         const char *b = hb_blob_get_data(locaBlob.b, &l);
-        std::cerr << "loca length: " << l << std::endl;
         sis.rdbuf()->pubsetbuf((char *) b, l);
+        b = hb_blob_get_data(primaryBlob.b, &l);
         sis.seekg(0);
         uint32_t lastioff = readObject<uint32_t>(sis), ioff;
         for (int i = 0; i < glyph_count; i++) {
@@ -939,9 +939,10 @@ int chunker::process(std::string &input_string) {
                                         HB_MEMORY_MODE_READONLY, NULL, NULL);
     } else {
         unsigned int l;
+        hb_blob_get_data(primaryBlob.b, &l);
         char *nglyf = (char *) malloc(l);
-        char *nloca = (char *) malloc(glyph_count * 4);
-        ss.rdbuf()->pubsetbuf(nloca, glyph_count * 4);
+        char *nloca = (char *) malloc((glyph_count + 1) * 4);
+        ss.rdbuf()->pubsetbuf(nloca, (glyph_count + 1) * 4);
         ss.seekp(0);
         char *ninsert = nglyf;
         for (uint32_t i = 0; i < glyph_count; i++) {
@@ -956,9 +957,10 @@ int chunker::process(std::string &input_string) {
             writeObject(ss, (uint32_t) (ninsert - nglyf));
             ninsert += froml;
         }
+        writeObject(ss, (uint32_t) (ninsert - nglyf));
         newPrimaryBlob = hb_blob_create(nglyf, ninsert - nglyf,
                                         HB_MEMORY_MODE_READONLY, NULL, NULL);
-        newLocaBlob = hb_blob_create(nloca, glyph_count * 4,
+        newLocaBlob = hb_blob_create(nloca, (glyph_count + 1) * 4,
                                      HB_MEMORY_MODE_READONLY, NULL, NULL);
     }
 
