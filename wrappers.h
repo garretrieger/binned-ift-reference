@@ -4,9 +4,15 @@
 
 #pragma once
 
-struct wr_face;
+namespace iftb {
+    struct wr_set;
+    struct wr_blob;
+    struct wr_face;
+    struct wr_font;
+    struct wr_subset_input;
+}
 
-struct wr_set {
+struct iftb::wr_set {
     hb_set_t *s;
     wr_set() { s = hb_set_create(); }
     wr_set(const wr_set &st) = delete;
@@ -59,7 +65,7 @@ struct wr_set {
     void destroy() { if (s) hb_set_destroy(s); }
 };
 
-struct wr_blob {
+struct iftb::wr_blob {
     hb_blob_t *b;
     wr_blob() : b(NULL) {}
     wr_blob(hb_blob_t *bl) { b = bl; }
@@ -84,7 +90,7 @@ private:
     void destroy() { if (b) hb_blob_destroy(b); }
 };
 
-struct wr_face {
+struct iftb::wr_face {
     hb_face_t *f;
     wr_face() { f = hb_face_get_empty(); }
     wr_face(hb_face_t *fa) { f = fa; }
@@ -117,7 +123,7 @@ struct wr_face {
     void destroy() { hb_face_destroy(f); }
 };
 
-struct wr_font {
+struct iftb::wr_font {
     hb_font_t *f;
     wr_font() { f = hb_font_get_empty(); }
     ~wr_font() { destroy(); }
@@ -126,7 +132,7 @@ struct wr_font {
     void destroy() { hb_font_destroy(f); }
 };
 
-struct wr_subset_input {
+struct iftb::wr_subset_input {
     hb_subset_input_t *i;
     wr_subset_input() { i = hb_subset_input_create_or_fail(); }
     ~wr_subset_input() { hb_subset_input_destroy(i); }

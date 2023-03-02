@@ -9,8 +9,13 @@
 
 #pragma once
 
-struct table_IFTB {
-    friend class iftb_chunker;
+namespace iftb {
+    class table_IFTB;
+    class chunker;
+}
+
+class iftb::table_IFTB {
+    friend class iftb::chunker;
     friend bool randtest(std::string &s, uint32_t iterations);
 public:
     uint16_t getChunkCount() { return (uint16_t) chunkCount; }
@@ -69,7 +74,7 @@ public:
     uint32_t *getID() { return id; }
 private:
     struct FeatureMap {
-        friend class iftb_chunker;
+        friend class iftb::chunker;
         FeatureMap() {}
         FeatureMap(const FeatureMap &fm) = delete;
         FeatureMap(FeatureMap &&fm) {

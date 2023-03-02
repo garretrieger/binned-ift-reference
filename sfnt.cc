@@ -11,12 +11,12 @@
 #include "sfnt.h"
 #include "tag.h"
 
-std::set<uint32_t> iftb_sfnt::Table::known_tables = { T_CMAP, T_CFF,
-                                                      T_CFF2, T_IFTB,
-                                                      T_GLYF, T_LOCA,
-                                                      T_GVAR, T_HEAD };
+std::set<uint32_t> iftb::sfnt::Table::known_tables = { T_CMAP, T_CFF,
+                                                       T_CFF2, T_IFTB,
+                                                       T_GLYF, T_LOCA,
+                                                       T_GVAR, T_HEAD };
 
-bool iftb_sfnt::getTableStream(simplestream &s, uint32_t tg) {
+bool iftb::sfnt::getTableStream(simplestream &s, uint32_t tg) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     auto i = directory.find(tg);
     if (i == directory.end())
@@ -25,7 +25,7 @@ bool iftb_sfnt::getTableStream(simplestream &s, uint32_t tg) {
     return true;
 }
 
-uint32_t iftb_sfnt::getTableOffset(uint32_t tg, uint32_t &length) {
+uint32_t iftb::sfnt::getTableOffset(uint32_t tg, uint32_t &length) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     uint32_t r = 0;
     auto i = directory.find(tg);
@@ -38,7 +38,7 @@ uint32_t iftb_sfnt::getTableOffset(uint32_t tg, uint32_t &length) {
     return r;
 }
 
-bool iftb_sfnt::read() {
+bool iftb::sfnt::read() {
     /* Read and validate version */
     ss.seekg(0);
     readObject(ss, origTag);
@@ -87,7 +87,7 @@ bool iftb_sfnt::read() {
     return true;
 }
 
-bool iftb_sfnt::write(bool asIFTB, bool writeHead) {
+bool iftb::sfnt::write(bool asIFTB, bool writeHead) {
     uint32_t totalsum;
     uint32_t headTableOffset = 0;
     uint32_t checkSumAdjustment;
@@ -133,8 +133,8 @@ bool iftb_sfnt::write(bool asIFTB, bool writeHead) {
     return true;
 }
 
-bool iftb_sfnt::adjustTable(uint32_t tg, uint32_t offset, uint32_t length,
-                            bool rechecksum) {
+bool iftb::sfnt::adjustTable(uint32_t tg, uint32_t offset, uint32_t length,
+                             bool rechecksum) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     auto t = directory.find(tg);
     if (t == directory.end())
@@ -148,7 +148,7 @@ bool iftb_sfnt::adjustTable(uint32_t tg, uint32_t offset, uint32_t length,
     return true;
 }
 
-bool iftb_sfnt::recalcTableChecksum(uint32_t tg) {
+bool iftb::sfnt::recalcTableChecksum(uint32_t tg) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
     auto t = directory.find(tg);
     if (t == directory.end())
@@ -159,8 +159,8 @@ bool iftb_sfnt::recalcTableChecksum(uint32_t tg) {
     return true;
 }
 
-bool iftb_sfnt::calcTableChecksum(const Table &table, uint32_t &checksum,
-                                  bool is_head) {
+bool iftb::sfnt::calcTableChecksum(const Table &table, uint32_t &checksum,
+                                   bool is_head) {
     uint32_t headAdjustment, nLongs = (table.length + 3) / 4, p;
 
     if (sfntOnly)
@@ -187,7 +187,7 @@ bool iftb_sfnt::calcTableChecksum(const Table &table, uint32_t &checksum,
 
 /* Check that the table checksums and the head adjustment checksums are
    calculated correctly. Also validate the sfnt search fields */
-bool iftb_sfnt::checkSums(bool full) {
+bool iftb::sfnt::checkSums(bool full) {
     uint32_t checkSumAdjustment = 0;
     uint32_t totalsum = 0;
     uint32_t headTableOffset = 0;

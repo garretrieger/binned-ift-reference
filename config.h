@@ -7,16 +7,21 @@
 
 #pragma once
 
-struct iftb_group_wrapper {
+namespace iftb {
+    struct group_wrapper;
+    class config;
+    typedef std::vector<std::unique_ptr<group_wrapper>> wrapped_groups;
+    class chunker;
+}
+
+struct iftb::group_wrapper {
     virtual bool next(uint32_t &gid) = 0;
-    virtual ~iftb_group_wrapper() = default;
+    virtual ~group_wrapper() = default;
 };
 
-typedef std::vector<std::unique_ptr<iftb_group_wrapper>> iftb_wrapped_groups;
-
-class iftb_config {
+class iftb::config {
  public:
-    friend class iftb_chunker;
+    friend class iftb::chunker;
     std::filesystem::path inputPath() { return _inputPath; }
     std::filesystem::path rangePath() { return pathPrefix / rangeFilename; }
     std::filesystem::path chunkPath(uint16_t idx) {
@@ -95,7 +100,7 @@ class iftb_config {
     }
 
     bool prepDir(std::filesystem::path &p, bool thrw = true);
-    void load_points(YAML::Node n, wr_set &s);
+    void load_points(YAML::Node n, iftb::wr_set &s);
     void load_ordered_points(YAML::Node n, std::vector<uint32_t> &s);
     void setNumChunks(uint16_t numChunks);
     bool subset_feature(uint32_t s) { return s >= feat_subset_cutoff; }
@@ -107,7 +112,7 @@ class iftb_config {
     bool noCatch() { return true; }
     uint32_t mini_targ() { return target_chunk_size / 2; }
  private:
-    struct vec_wrapper : iftb_group_wrapper {
+    struct vec_wrapper : iftb::group_wrapper {
         vec_wrapper(std::vector<uint32_t> &v) : v(v) {
             i = v.begin();
         }
@@ -123,24 +128,24 @@ class iftb_config {
         std::vector<uint32_t> &v;
         std::vector<uint32_t>::iterator i;
     };
-    struct set_wrapper : iftb_group_wrapper {
+    struct set_wrapper : iftb::group_wrapper {
         virtual ~set_wrapper() = default;
-        wr_set &s;
-        set_wrapper(wr_set &s) : s(s) {}
+        iftb::wr_set &s;
+        set_wrapper(iftb::wr_set &s) : s(s) {}
         bool next(uint32_t &gid) override {
             return s.next(gid);
         }
     };
-    void get_groups(iftb_wrapped_groups &pg) {
+    void get_groups(iftb::wrapped_groups &pg) {
         for (auto &i: ordered_point_groups)
             pg.emplace_back(std::make_unique<vec_wrapper>(i));
         for (auto &i: point_groups)
             pg.emplace_back(std::make_unique<set_wrapper>(i));
     }
     uint8_t _verbosity = 0;
-    wr_set base_points, used_points;
+    iftb::wr_set base_points, used_points;
     std::vector<std::vector<uint32_t>> ordered_point_groups;
-    std::vector<wr_set> point_groups;
+    std::vector<iftb::wr_set> point_groups;
     uint32_t feat_subset_cutoff = 0xFFFF;
     uint32_t target_chunk_size = 0x8FFF;
     uint8_t chunk_hex_digits = 0;

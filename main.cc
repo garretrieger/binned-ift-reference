@@ -27,7 +27,7 @@ std::string loadPathAsString(std::filesystem::path &fpath,
     ifs.close();
 
     if (decompress)
-        tg = iftb_decodeBuffer(NULL, 0, s);
+        tg = iftb::decodeBuffer(NULL, 0, s);
     else
         tg = tagFromBuffer(s.data());
 
@@ -38,14 +38,14 @@ std::string loadPathAsString(std::filesystem::path &fpath,
     return s;
 }
 
-int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
+int dispatch(argparse::ArgumentParser &program, iftb::config &conf) {
     int r;
     if (program.is_subcommand_used("check")) {
         auto check = program.at<argparse::ArgumentParser>("check");
         std::filesystem::path fpath = check.get<std::string>("base_file");
         std::string fs = loadPathAsString(fpath);
 
-        r = iftb_sanitize(fs, conf) ? 0 : 1;
+        r = iftb::sanitize(fs, conf) ? 0 : 1;
         if (r)
             std::cerr << "Error: File failed sanitization" << std::endl;
         else
@@ -55,7 +55,7 @@ int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
         std::filesystem::path fpath = process.get<std::string>("font_file");
         std::filesystem::path prefix;
         std::string fs;
-        iftb_chunker ck(conf);
+        iftb::chunker ck(conf);
 
         conf.load(program.get<std::string>("-c"), !program.is_used("-c"));
 
@@ -76,13 +76,13 @@ int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
         std::filesystem::path fpath = dumpchunks.get<std::string>("base_file");
         std::string fs = loadPathAsString(fpath);
 
-        iftb_sfnt sft(fs);
+        iftb::sfnt sft(fs);
         sft.read();
         simplestream ss;
         if (!sft.getTableStream(ss, T_IFTB))
             throw std::runtime_error("No IFTB table in font file");
 
-        table_IFTB tiftb;
+        iftb::table_IFTB tiftb;
         tiftb.decompile(ss);
         std::filesystem::current_path(fpath.parent_path());
         std::stringstream css;
@@ -100,9 +100,9 @@ int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
                 std::string cfz(clen, 0);
                 rs.seekg(cstart);
                 rs.read(cfz.data(), clen);
-                css.str(iftb_decodeChunk(cfz.data(), cfz.size()));
+                css.str(iftb::decodeChunk(cfz.data(), cfz.size()));
                 std::cerr << std::endl << cidx << std::endl;
-                iftb_dumpChunk(std::cerr, css);
+                iftb::dumpChunk(std::cerr, css);
             }
         } else {
             for (auto cidx: chunks) {
@@ -115,7 +115,7 @@ int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
                 std::string cfs = loadPathAsString(cp);
                 css.str(cfs);
                 std::cerr << std::endl << cidx << ": " << cp << std::endl;
-                iftb_dumpChunk(std::cerr, css);
+                iftb::dumpChunk(std::cerr, css);
             }
         }
     } else if (program.is_subcommand_used("merge")) {
@@ -124,7 +124,7 @@ int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
         std::filesystem::path fpath = merge.get<std::string>("base_file");
         std::string fs = loadPathAsString(fpath);
 
-        iftb_client cl;
+        iftb::client cl;
         if (!cl.loadFont(fs))
             std::exit(1);
 
@@ -190,7 +190,7 @@ int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
         std::filesystem::path fpath = stresstest.get<std::string>("base_file");
         std::string fs = loadPathAsString(fpath);
 
-        if (randtest(fs)) {
+        if (iftb::randtest(fs)) {
             std::cerr << "File passed stress tests" << std::endl;
             r = 0;
         } else {
@@ -206,7 +206,7 @@ int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
 }
 
 int main(int argc, char **argv) {
-    iftb_config conf;
+    iftb::config conf;
 
     argparse::ArgumentParser program("iftb");
 

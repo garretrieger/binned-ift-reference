@@ -6,13 +6,14 @@
 #include "client.h"
 #include "wrappers.h"
 
-bool randbool() {
+static bool randbool() {
     static auto gen = std::bind(std::uniform_int_distribution<>(0, 1),
                                 std::default_random_engine());
     return gen();
 }
 
-bool randtest(std::string &input_string, uint32_t iterations) {
+bool iftb::randtest(std::string &input_string, uint32_t iterations) {
+    using namespace iftb;
     wr_blob inblob;
     wr_face inface, proface;
     wr_set all_features, all_codepoints, some_gids_hb, some_gids_iftb;
@@ -27,7 +28,7 @@ bool randtest(std::string &input_string, uint32_t iterations) {
     inblob.from_string(input_string, true);
     inface.create(inblob);
 
-    iftb_client cl;
+    iftb::client cl;
     if (!cl.loadFont(input_string, true))
         return false;
 

@@ -14,7 +14,11 @@
 
 #pragma once
 
-class iftb_sfnt {
+namespace iftb {
+    class sfnt;
+}
+
+class iftb::sfnt {
  public:
     struct Table {
         Table() {}
@@ -32,10 +36,10 @@ class iftb_sfnt {
         static const uint32_t entry_size = sizeof(uint32_t) * 4;
         static std::set<uint32_t> known_tables;
     };
-    iftb_sfnt() {}
-    iftb_sfnt(char *b, uint32_t l, bool so = false) :
+    sfnt() {}
+    sfnt(char *b, uint32_t l, bool so = false) :
         sfntOnly(so), ss(b, l) { }
-    iftb_sfnt(std::string &s, bool so = false) :
+    sfnt(std::string &s, bool so = false) :
         sfntOnly(so), ss(s.data(), s.size()) { }
     void setBuffer(std::string &s, bool so = false) {
         setBuffer(s.data(), s.size(), so);

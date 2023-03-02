@@ -13,7 +13,7 @@
 #include "streamhelp.h"
 #include "tag.h"
 
-bool iftb_merger::unpackChunks() {
+bool iftb::merger::unpackChunks() {
     for (auto &i: chunkData) {
         if (!chunkAddRecs(i.first, i.second))
             return false;
@@ -21,7 +21,7 @@ bool iftb_merger::unpackChunks() {
     return true;
 }
 
-bool iftb_merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
+bool iftb::merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
     uint32_t glyphCount, table1, table2 = 0;
     uint32_t offset, lastOffset = 0;
     char *initialOffset;
@@ -86,8 +86,8 @@ bool iftb_merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
     return true;
 }
 
-uint32_t iftb_merger::calcLengthDiff(std::istream &is, uint32_t glyphCount, 
-                                     std::map<uint16_t, glyphrec> &glyphMap) {
+uint32_t iftb::merger::calcLengthDiff(std::istream &is, uint32_t glyphCount, 
+                                      std::map<uint16_t, glyphrec> &glyphMap) {
     uint32_t ldiff = 0;
     uint32_t arrayOff = is.tellg();
     for (auto &i: glyphMap) {
@@ -101,10 +101,10 @@ uint32_t iftb_merger::calcLengthDiff(std::istream &is, uint32_t glyphCount,
     return ldiff;
 }
 
-bool iftb_merger::copyGlyphData(std::iostream &s, uint32_t glyphCount,
-                                char *nbase, char *cbase, uint32_t ldiff,
-                                std::map<uint16_t, glyphrec> &glyphMap,
-                                uint32_t basediff) {
+bool iftb::merger::copyGlyphData(std::iostream &s, uint32_t glyphCount,
+                                 char *nbase, char *cbase, uint32_t ldiff,
+                                 std::map<uint16_t, glyphrec> &glyphMap,
+                                 uint32_t basediff) {
     uint32_t off, nextOff, clen;
     s.seekg(glyphCount * 4);
     readObject(s, nextOff);
@@ -139,7 +139,7 @@ bool iftb_merger::copyGlyphData(std::iostream &s, uint32_t glyphCount,
     return true;
 }
 
-uint32_t iftb_merger::calcLayout(iftb_sfnt &sf, uint32_t numg, uint32_t cso) {
+uint32_t iftb::merger::calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso) {
     uint32_t ldiff;
 
     charStringOff = cso;
@@ -198,7 +198,7 @@ uint32_t iftb_merger::calcLayout(iftb_sfnt &sf, uint32_t numg, uint32_t cso) {
     return fontend;
 }
 
-bool iftb_merger::merge(iftb_sfnt &sf, char *oldbuf, char *newbuf) {
+bool iftb::merger::merge(iftb::sfnt &sf, char *oldbuf, char *newbuf) {
     if (oldbuf != newbuf) {
         if (has_cff)
             memcpy(newbuf, oldbuf, t1off + charStringOff + 3 +
@@ -248,7 +248,7 @@ bool iftb_merger::merge(iftb_sfnt &sf, char *oldbuf, char *newbuf) {
 }
 
 
-void iftb_dumpChunk(std::ostream &os, std::istream &is) {
+void iftb::dumpChunk(std::ostream &os, std::istream &is) {
     uint32_t u32, glyphCount, table1, table2 = 0, idx;
     uint32_t length, offset, lastOffset = 0;
     uint8_t tableCount;
@@ -322,7 +322,7 @@ void iftb_dumpChunk(std::ostream &os, std::istream &is) {
     }
 }
  
-std::string iftb_decodeChunk(char *buf, size_t length) {
+std::string iftb::decodeChunk(char *buf, size_t length) {
     uint32_t l;
 
     simpleistream sis;
@@ -354,7 +354,7 @@ std::string iftb_decodeChunk(char *buf, size_t length) {
    When buf == NULL the string will be treated as the input, which will
    only be changed if it needs to be decoded (decompressed)
  */
-uint32_t iftb_decodeBuffer(char *buf, uint32_t length, std::string &s,
+uint32_t iftb::decodeBuffer(char *buf, uint32_t length, std::string &s,
                            float reserveExtra) {
     bool is_woff2 = false, is_compressed_chunk = false;
     bool in_string = (buf == NULL);
@@ -391,7 +391,7 @@ uint32_t iftb_decodeBuffer(char *buf, uint32_t length, std::string &s,
             tg = 0;
         }
     } else if (is_compressed_chunk) {
-        std::string t = iftb_decodeChunk(buf, length);
+        std::string t = iftb::decodeChunk(buf, length);
         if (t.size() > 4) {
             s.swap(t);
             t.clear();

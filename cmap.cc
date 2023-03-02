@@ -11,9 +11,9 @@ struct type4seg {
     int16_t idDelta {0};
 };
 
-bool readcmap(std::istream &is,
-              std::unordered_map<uint32_t, uint16_t> &uniMap,
-              std::vector<uint16_t> *gidMap) {
+bool iftb::readcmap(std::istream &is,
+                    std::unordered_map<uint32_t, uint16_t> &uniMap,
+                    std::vector<uint16_t> *gidMap) {
     uint16_t numTables, platformID, encodingID;
     uint32_t subtableOffset, candidateOffset = 0;
     readObject<uint16_t>(is);  // version

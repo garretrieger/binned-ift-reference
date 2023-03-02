@@ -2,12 +2,12 @@
 #include "streamhelp.h"
 #include "tag.h"
 
-bool iftb_client::loadFont(std::string &s, bool keepGIDMap) {
+bool iftb::client::loadFont(std::string &s, bool keepGIDMap) {
     return loadFont(s.data(), s.length(), keepGIDMap);
 }
 
-bool iftb_client::loadFont(char *buf, uint32_t length, bool keepGIDMap) {
-    uint32_t tg = iftb_decodeBuffer(buf, length, fontData, extraPercent());
+bool iftb::client::loadFont(char *buf, uint32_t length, bool keepGIDMap) {
+    uint32_t tg = iftb::decodeBuffer(buf, length, fontData, extraPercent());
     if (tg != 0x00010000 && tg != tag("OTTO") && tg != tag("IFTB"))
         return error("Unrecognized font type.");
 
@@ -37,8 +37,8 @@ bool iftb_client::loadFont(char *buf, uint32_t length, bool keepGIDMap) {
     return true;
 }
 
-bool iftb_client::addChunk(uint16_t idx, char *buf, uint32_t length,
-                           bool setPending) {
+bool iftb::client::addChunk(uint16_t idx, char *buf, uint32_t length,
+                            bool setPending) {
     if (!hasFont() or failed)
         return false;
     if (idx >= tiftb.getChunkCount())
@@ -48,13 +48,13 @@ bool iftb_client::addChunk(uint16_t idx, char *buf, uint32_t length,
     } else if (pendingChunks.find(idx) == pendingChunks.end()) {
         return error("Cannot add chunk index that is not pending");
     }
-    uint32_t tg = iftb_decodeBuffer(buf, length, merger.stringForChunk(idx));
+    uint32_t tg = iftb::decodeBuffer(buf, length, merger.stringForChunk(idx));
     if (tg != tag("IFTC"))
         return error("File type for chunk is not IFTC");
     return true;
 }
 
-bool iftb_client::canMerge() {
+bool iftb::client::canMerge() {
     for (auto i: pendingChunks)
         if (!merger.hasChunk(i)) {
             std::cerr << "Can't merge: missing chunk " << i << std::endl;
@@ -63,7 +63,7 @@ bool iftb_client::canMerge() {
     return true;
 }
 
-bool iftb_client::merge(bool asIFTB) {
+bool iftb::client::merge(bool asIFTB) {
     std::string newString;
     bool swapping = false;
 
@@ -105,20 +105,20 @@ bool iftb_client::merge(bool asIFTB) {
     return true;
 }
 
-uint16_t iftb_client::getChunkCount() {
+uint16_t iftb::client::getChunkCount() {
     if (!hasFont() or failed)
         return 0;
     return tiftb.getChunkCount();
 }
 
-bool iftb_client::setPending(const std::vector<uint32_t> &unicodes,
-                             const std::vector<uint32_t> &features) {
+bool iftb::client::setPending(const std::vector<uint32_t> &unicodes,
+                              const std::vector<uint32_t> &features) {
     if (!hasFont() or failed)
         return false;
     return tiftb.getMissingChunks(unicodes, features, pendingChunks);
 }
 
-bool iftb_client::getPendingChunkList(std::vector<uint16_t> &cl) {
+bool iftb::client::getPendingChunkList(std::vector<uint16_t> &cl) {
     if (!hasFont() or failed)
         return false;
     if (pendingChunks.size() == 0)
@@ -129,19 +129,19 @@ bool iftb_client::getPendingChunkList(std::vector<uint16_t> &cl) {
     return true;
 }
 
-std::string iftb_client::getRangeFileURI() {
+std::string iftb::client::getRangeFileURI() {
     if (!hasFont() or failed)
         return "";
     return tiftb.getRangeFileURI();
 }
 
-std::string iftb_client::getChunkURI(uint16_t cidx) {
+std::string iftb::client::getChunkURI(uint16_t cidx) {
     if (!hasFont() or failed)
         return "";
     return tiftb.getChunkURI(cidx);
 }
 
-std::pair<uint32_t, uint32_t> iftb_client::getChunkRange(uint16_t cidx) {
+std::pair<uint32_t, uint32_t> iftb::client::getChunkRange(uint16_t cidx) {
     if (!hasFont() or failed)
         std::pair<uint32_t, uint32_t>(0,0);
     return tiftb.getChunkRange(cidx);

@@ -7,12 +7,16 @@
 
 #pragma once
 
-class iftb_chunk {
+namespace iftb {
+    class chunk;
+}
+
+class iftb::chunk {
  public:
-    iftb_chunk() {}
-    friend class iftb_chunker;
-    iftb_chunk(const iftb_chunk &c) = delete;
-    iftb_chunk(iftb_chunk &&c) {
+    chunk() {}
+    friend class iftb::chunker;
+    chunk(const chunk &c) = delete;
+    chunk(chunk &&c) {
         codepoints.s = c.codepoints.s;
         c.codepoints.s = hb_set_create();
         gids.s = c.gids.s;
@@ -33,7 +37,7 @@ class iftb_chunk {
         from_min = from_max = 0;
         merged_to = (uint32_t) -1;
     }
-    void merge(iftb_chunk &c, bool permissive = false) {
+    void merge(chunk &c, bool permissive = false) {
         assert(feat == c.feat);
         if (!permissive)
             assert(group == c.group);
@@ -47,14 +51,14 @@ class iftb_chunk {
     void compile(std::ostream &os, uint16_t idx,
                  uint32_t *id,
                  uint32_t table1,
-                 std::vector<iftb_merger::glyphrec> &recs1,
+                 std::vector<iftb::merger::glyphrec> &recs1,
                  uint32_t table2,
-                 std::vector<iftb_merger::glyphrec> &recs2,
+                 std::vector<iftb::merger::glyphrec> &recs2,
                  uint32_t offset = 0);
     static std::string encode(std::stringstream &ss);
  private:
-    wr_set codepoints;
-    wr_set gids;
+    iftb::wr_set codepoints;
+    iftb::wr_set gids;
     uint16_t group = 0;
     uint32_t feat = 0;
     uint32_t size = 0;

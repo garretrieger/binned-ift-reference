@@ -8,7 +8,15 @@
 
 #pragma once
 
-class iftb_merger {
+namespace iftb {
+    class merger;
+    void dumpChunk(std::ostream &os, std::istream &is);
+    std::string decodeChunk(char *buf, size_t length);
+    uint32_t decodeBuffer(char *buf, uint32_t length, std::string &s,
+                          float reserveExtra = 0.0);
+}
+
+class iftb::merger {
 public:
     struct glyphrec {
         glyphrec() {}
@@ -56,8 +64,8 @@ public:
                        char *nbase, char *cbase, uint32_t ldiff,
                        std::map<uint16_t, glyphrec> &glyphMap,
                        uint32_t basediff);
-    uint32_t calcLayout(iftb_sfnt &sf, uint32_t numg, uint32_t cso);
-    bool merge(iftb_sfnt &sf, char *oldbuf, char *newbuf);
+    uint32_t calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso);
+    bool merge(iftb::sfnt &sf, char *oldbuf, char *newbuf);
 private:
     bool chunkError(uint16_t cidx, const char *m) {
         std::cerr << "Chunk " << cidx << " error: " << m << std::endl;
@@ -76,7 +84,3 @@ private:
     uint32_t locacoff {0}, locanoff {0}, localen {0}, fontend {0};
 };
 
-void iftb_dumpChunk(std::ostream &os, std::istream &is);
-std::string iftb_decodeChunk(char *buf, size_t length);
-uint32_t iftb_decodeBuffer(char *buf, uint32_t length, std::string &s,
-                           float reserveExtra = 0.0);

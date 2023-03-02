@@ -4,4 +4,6 @@
 
 #pragma once
 
-bool iftb_sanitize(std::string &s, iftb_config &conf);
+namespace iftb {
+    bool sanitize(std::string &s, iftb::config &conf);
+}

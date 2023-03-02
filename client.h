@@ -7,13 +7,18 @@
 #include "table_IFTB.h"
 #include "merger.h"
 #include "streamhelp.h"
+#include "randtest.h"
 
 #pragma once
 
-class iftb_client {
+namespace iftb {
+    class client;
+}
+
+class iftb::client {
  public:
-    friend bool randtest(std::string &s, uint32_t iterations);
-    iftb_client() {}
+    friend bool iftb::randtest(std::string &s, uint32_t iterations);
+    client() {}
     bool loadFont(std::string &s, bool keepGIDMap = false);
     bool loadFont(char *buf, uint32_t length, bool keepGIDMap = false);
     bool hasFont() { return fontData.size() > 0; }
@@ -40,10 +45,10 @@ class iftb_client {
     std::string &getFontAsString() { return fontData; }
  private:
     static constexpr float extraPercent() { return 1.0; }
-    table_IFTB tiftb;
-    iftb_sfnt sfnt;
+    iftb::table_IFTB tiftb;
+    iftb::sfnt sfnt;
     std::set<uint16_t> pendingChunks;
-    iftb_merger merger;
+    iftb::merger merger;
     std::string fontData;
     simplestream ss;
     bool failed {false};

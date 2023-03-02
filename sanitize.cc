@@ -6,8 +6,8 @@
 #include "tag.h"
 #include "table_IFTB.h"
 
-bool iftb_sanitize(std::string &s, iftb_config &conf) {
-    iftb_sfnt sfnt(s);
+bool iftb::sanitize(std::string &s, iftb::config &conf) {
+    iftb::sfnt sfnt(s);
     simplestream ss;
 
     if (!sfnt.read()) {

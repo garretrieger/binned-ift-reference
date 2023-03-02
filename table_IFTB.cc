@@ -5,7 +5,7 @@
 
 #include "tag.h"
 
-void table_IFTB::writeChunkSet(std::ostream &os, bool seekTo) {
+void iftb::table_IFTB::writeChunkSet(std::ostream &os, bool seekTo) {
     uint8_t u8 = 0;
     if (seekTo)
         os.seekp(50);
@@ -21,7 +21,7 @@ void table_IFTB::writeChunkSet(std::ostream &os, bool seekTo) {
     }
 }
 
-void table_IFTB::dumpChunkSet(std::ostream &os) {
+void iftb::table_IFTB::dumpChunkSet(std::ostream &os) {
     os << "chunkSet indexes: ";
     bool printed = false;
     for (uint32_t i = 0; i < chunkCount; i++) {
@@ -35,9 +35,9 @@ void table_IFTB::dumpChunkSet(std::ostream &os) {
     os << std::endl;
 }
 
-bool table_IFTB::getMissingChunks(const std::vector<uint32_t> &unicodes,
-                                  const std::vector<uint32_t> &features,
-                                  std::set<uint16_t> &cks) {
+bool iftb::table_IFTB::getMissingChunks(const std::vector<uint32_t> &unicodes,
+                                        const std::vector<uint32_t> &features,
+                                        std::set<uint16_t> &cks) {
     cks.clear();
     uint16_t ck;
     for (auto cp: unicodes) {
@@ -67,7 +67,7 @@ bool table_IFTB::getMissingChunks(const std::vector<uint32_t> &unicodes,
     return true;
 }
 
-std::pair<uint32_t, uint32_t> table_IFTB::getChunkRange(uint16_t cidx) {
+std::pair<uint32_t, uint32_t> iftb::table_IFTB::getChunkRange(uint16_t cidx) {
     if (cidx >= chunkOffsets.size() - 1)
         return std::pair<uint32_t, uint32_t>(0, 0);
 
@@ -76,7 +76,7 @@ std::pair<uint32_t, uint32_t> table_IFTB::getChunkRange(uint16_t cidx) {
 }
 
             
-uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
+uint32_t iftb::table_IFTB::compile(std::ostream &os, uint32_t offset) {
     uint32_t gidMapTableOffset = 0, chunkOffsetTableOffset = 0;
     uint32_t featureMapTableOffset = 0, relOffsetsOffset = 0;
     os.seekp(offset);
@@ -147,7 +147,7 @@ uint32_t table_IFTB::compile(std::ostream &os, uint32_t offset) {
     return l;
 }
 
-bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
+bool iftb::table_IFTB::decompile(std::istream &is, uint32_t offset) {
     uint32_t gidMapTableOffset, chunkOffsetTableOffset;
     uint32_t featureMapTableOffset;
     uint16_t firstMappedGid;
@@ -232,7 +232,7 @@ bool table_IFTB::decompile(std::istream &is, uint32_t offset) {
     return true;
 }
 
-void table_IFTB::dump(std::ostream &os, bool full) {
+void iftb::table_IFTB::dump(std::ostream &os, bool full) {
     os << "majorVersion: " << majorVersion << std::endl;
     os << "minorVersion: " << minorVersion << std::endl;
     char c = os.fill();
@@ -269,7 +269,7 @@ void table_IFTB::dump(std::ostream &os, bool full) {
     os << "rangeFileURI: " << rangeFileURI << std::endl;
 }
 
-std::string table_IFTB::getChunkURI(uint16_t idx) {
+std::string iftb::table_IFTB::getChunkURI(uint16_t idx) {
     char buf[10];
     uint8_t digit;
     size_t pos = 0, lastPos = 0;
