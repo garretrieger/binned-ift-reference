@@ -7,11 +7,13 @@
 #include "streamhelp.h"
 #include "tag.h"
 
-void chunk::compile(std::ostream &os, uint16_t idx,
-                    uint32_t *id,
-                    uint32_t table1, std::vector<glyphrec> &recs1,
-                    uint32_t table2, std::vector<glyphrec> &recs2,
-                    uint32_t offset) {
+void iftb_chunk::compile(std::ostream &os, uint16_t idx,
+                         uint32_t *id,
+                         uint32_t table1,
+                         std::vector<iftb_merger::glyphrec> &recs1,
+                         uint32_t table2,
+                         std::vector<iftb_merger::glyphrec> &recs2,
+                         uint32_t offset) {
     unsigned int length1, length2;
     bool twotables = (table2 != 0);
     os.seekp(offset);
@@ -63,7 +65,7 @@ void chunk::compile(std::ostream &os, uint16_t idx,
     writeObject(os, bl);
 }
 
-std::string chunk::encode(std::stringstream &ss) {
+std::string iftb_chunk::encode(std::stringstream &ss) {
     uint32_t l;
 
     ss.seekg(28);  // length offset

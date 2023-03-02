@@ -2,7 +2,7 @@
 DEPDIR := .deps
 DEPFLAGS = -MT $@ -MMD -MP -MF ${DEPDIR}/$*.d
 CXX := g++
-SRCS := chunker.cc config.cc main.cc chunk.cc table_IFTB.cc sfnt.cc sanitize.cc unchunk.cc cmap.cc client.cc randtest.cc
+SRCS := chunker.cc config.cc main.cc chunk.cc table_IFTB.cc sfnt.cc sanitize.cc merger.cc cmap.cc client.cc randtest.cc
 OBJS := ${SRCS:.cc=.o}
 # CFLAGS := -I/home/skef/src/harfbuzz/src -g -fsanitize=address
 CFLAGS := -I/home/skef/src/harfbuzz/src -g

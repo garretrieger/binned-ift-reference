@@ -7,50 +7,16 @@
 
 #pragma once
 
-struct group_wrapper {
+struct iftb_group_wrapper {
     virtual bool next(uint32_t &gid) = 0;
-    virtual ~group_wrapper() = default;
+    virtual ~iftb_group_wrapper() = default;
 };
 
-struct vec_wrapper : group_wrapper {
-    vec_wrapper(std::vector<uint32_t> &v) : v(v) {
-        i = v.begin();
-    }
-    virtual ~vec_wrapper() = default;
-    bool next(uint32_t &gid) override {
-        if (i != v.end()) {
-            gid = *i;
-            i++;
-            return true;
-        } else
-            return false;
-    }
-    std::vector<uint32_t> &v;
-    std::vector<uint32_t>::iterator i;
-};
+typedef std::vector<std::unique_ptr<iftb_group_wrapper>> iftb_wrapped_groups;
 
-struct set_wrapper : group_wrapper {
-    virtual ~set_wrapper() = default;
-    set &s;
-    set_wrapper(set &s) : s(s) {}
-     bool next(uint32_t &gid) override {
-        return s.next(gid);
-    }
-};
-
-typedef std::vector<std::unique_ptr<group_wrapper>> wrapped_groups;
-
-struct config {
-    uint8_t _verbosity = 0;
-    set base_points, used_points;
-    std::vector<std::vector<uint32_t>> ordered_point_groups;
-    std::vector<set> point_groups;
-    uint32_t feat_subset_cutoff = 0xFFFF;
-    uint32_t target_chunk_size = 0x8FFF;
-    uint8_t chunk_hex_digits = 0;
-    uint8_t chunk_dir_levels = 0;
-    std::string rangeFilename = "rangefile";
-    std::filesystem::path _inputPath, pathPrefix;
+class iftb_config {
+ public:
+    friend class iftb_chunker;
     std::filesystem::path inputPath() { return _inputPath; }
     std::filesystem::path rangePath() { return pathPrefix / rangeFilename; }
     std::filesystem::path chunkPath(uint16_t idx) {
@@ -129,7 +95,7 @@ struct config {
     }
 
     bool prepDir(std::filesystem::path &p, bool thrw = true);
-    void load_points(YAML::Node n, set &s);
+    void load_points(YAML::Node n, wr_set &s);
     void load_ordered_points(YAML::Node n, std::vector<uint32_t> &s);
     void setNumChunks(uint16_t numChunks);
     bool subset_feature(uint32_t s) { return s >= feat_subset_cutoff; }
@@ -139,11 +105,46 @@ struct config {
     bool allgids() { return false; }
     bool printConfig() { return true; }
     bool noCatch() { return true; }
-    void get_groups(wrapped_groups &pg) {
+    uint32_t mini_targ() { return target_chunk_size / 2; }
+ private:
+    struct vec_wrapper : iftb_group_wrapper {
+        vec_wrapper(std::vector<uint32_t> &v) : v(v) {
+            i = v.begin();
+        }
+        virtual ~vec_wrapper() = default;
+        bool next(uint32_t &gid) override {
+            if (i != v.end()) {
+                gid = *i;
+                i++;
+                return true;
+            } else
+                return false;
+        }
+        std::vector<uint32_t> &v;
+        std::vector<uint32_t>::iterator i;
+    };
+    struct set_wrapper : iftb_group_wrapper {
+        virtual ~set_wrapper() = default;
+        wr_set &s;
+        set_wrapper(wr_set &s) : s(s) {}
+        bool next(uint32_t &gid) override {
+            return s.next(gid);
+        }
+    };
+    void get_groups(iftb_wrapped_groups &pg) {
         for (auto &i: ordered_point_groups)
             pg.emplace_back(std::make_unique<vec_wrapper>(i));
         for (auto &i: point_groups)
             pg.emplace_back(std::make_unique<set_wrapper>(i));
     }
-    uint32_t mini_targ() { return target_chunk_size / 2; }
+    uint8_t _verbosity = 0;
+    wr_set base_points, used_points;
+    std::vector<std::vector<uint32_t>> ordered_point_groups;
+    std::vector<wr_set> point_groups;
+    uint32_t feat_subset_cutoff = 0xFFFF;
+    uint32_t target_chunk_size = 0x8FFF;
+    uint8_t chunk_hex_digits = 0;
+    uint8_t chunk_dir_levels = 0;
+    std::string rangeFilename = "rangefile";
+    std::filesystem::path _inputPath, pathPrefix;
 };

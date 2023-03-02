@@ -6,19 +6,19 @@
 #include "tag.h"
 #include "table_IFTB.h"
 
-bool iftb_sanitize(std::string &s, config &conf) {
-    sfnt sf(s);
+bool iftb_sanitize(std::string &s, iftb_config &conf) {
+    iftb_sfnt sfnt(s);
     simplestream ss;
 
-    if (!sf.read()) {
+    if (!sfnt.read()) {
         return false;
     }
-    if (!sf.checkSums(conf.verbosity() > 1)) {
+    if (!sfnt.checkSums(conf.verbosity() > 1)) {
         std::cerr << "sfnt table checksum error" << std::endl;
         return false;
     }
 
-    if (!sf.getTableStream(ss, T_IFTB)) {
+    if (!sfnt.getTableStream(ss, T_IFTB)) {
         std::cerr << "Error: No IFTB table in font file" << std::endl;
         return false;
     }
@@ -33,29 +33,29 @@ bool iftb_sanitize(std::string &s, config &conf) {
 
     bool is_cff = false, is_variable = false;
     // Determine font type
-    if (sf.has(T_CFF)) {
-        if (sf.has(T_CFF2)) {
+    if (sfnt.has(T_CFF)) {
+        if (sfnt.has(T_CFF2)) {
             std::cerr << "Error: Font has both CFF and CFF2 tables" << std::endl;
             return false;
-        } else if (sf.has(T_GLYF)) {
+        } else if (sfnt.has(T_GLYF)) {
             std::cerr << "Error: Font has both CFF and glyf tables" << std::endl;
             return false;
         }
         is_cff = true;
-    } else if (sf.has(T_CFF2)) {
-        if (sf.has(T_GLYF)) {
+    } else if (sfnt.has(T_CFF2)) {
+        if (sfnt.has(T_GLYF)) {
             std::cerr << "Error: Font has both CFF2 and glyf tables" << std::endl;
             return false;
         }
         is_cff = is_variable = true;
-    } else if (sf.has(T_GLYF)) {
-        if (sf.has(T_GVAR)) {
+    } else if (sfnt.has(T_GLYF)) {
+        if (sfnt.has(T_GVAR)) {
             is_variable = true;
         }
     } else
         std::cerr << "Error: No CFF, CFF2 or glyf table in font." << std::endl;
 
-    if (!sf.getTableStream(ss, tag("head"))) {
+    if (!sfnt.getTableStream(ss, tag("head"))) {
         std::cerr << "Error: No head table in font file" << std::endl;
         return false;
     }

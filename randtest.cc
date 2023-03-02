@@ -13,16 +13,16 @@ bool randbool() {
 }
 
 bool randtest(std::string &input_string, uint32_t iterations) {
-    blob inblob;
-    face inface, proface;
-    set all_features, all_codepoints, some_gids_hb, some_gids_iftb;
-    subset_input input;
+    wr_blob inblob;
+    wr_face inface, proface;
+    wr_set all_features, all_codepoints, some_gids_hb, some_gids_iftb;
+    wr_subset_input input;
     hb_set_t *t;
     uint32_t u32;
     unsigned int flags;
     std::vector<uint32_t> some_features, some_codepoints;
     std::vector<uint16_t> pending_chunks;
-    std::vector<set> gid_sets;
+    std::vector<wr_set> gid_sets;
 
     inblob.from_string(input_string, true);
     inface.create(inblob);

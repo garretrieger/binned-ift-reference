@@ -10,7 +10,7 @@
 #include "config.h"
 #include "chunker.h"
 #include "client.h"
-#include "unchunk.h"
+#include "merger.h"
 #include "table_IFTB.h"
 #include "sfnt.h"
 #include "tag.h"
@@ -27,7 +27,7 @@ std::string loadPathAsString(std::filesystem::path &fpath,
     ifs.close();
 
     if (decompress)
-        tg = decodeBuffer(NULL, 0, s);
+        tg = iftb_decodeBuffer(NULL, 0, s);
     else
         tg = tagFromBuffer(s.data());
 
@@ -38,7 +38,7 @@ std::string loadPathAsString(std::filesystem::path &fpath,
     return s;
 }
 
-int dispatch(argparse::ArgumentParser &program, config &conf) {
+int dispatch(argparse::ArgumentParser &program, iftb_config &conf) {
     int r;
     if (program.is_subcommand_used("check")) {
         auto check = program.at<argparse::ArgumentParser>("check");
@@ -55,7 +55,7 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
         std::filesystem::path fpath = process.get<std::string>("font_file");
         std::filesystem::path prefix;
         std::string fs;
-        chunker ck(conf);
+        iftb_chunker ck(conf);
 
         conf.load(program.get<std::string>("-c"), !program.is_used("-c"));
 
@@ -76,7 +76,7 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
         std::filesystem::path fpath = dumpchunks.get<std::string>("base_file");
         std::string fs = loadPathAsString(fpath);
 
-        sfnt sft(fs);
+        iftb_sfnt sft(fs);
         sft.read();
         simplestream ss;
         if (!sft.getTableStream(ss, T_IFTB))
@@ -100,9 +100,9 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
                 std::string cfz(clen, 0);
                 rs.seekg(cstart);
                 rs.read(cfz.data(), clen);
-                css.str(decodeChunk(cfz.data(), cfz.size()));
+                css.str(iftb_decodeChunk(cfz.data(), cfz.size()));
                 std::cerr << std::endl << cidx << std::endl;
-                dumpChunk(std::cerr, css);
+                iftb_dumpChunk(std::cerr, css);
             }
         } else {
             for (auto cidx: chunks) {
@@ -115,7 +115,7 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
                 std::string cfs = loadPathAsString(cp);
                 css.str(cfs);
                 std::cerr << std::endl << cidx << ": " << cp << std::endl;
-                dumpChunk(std::cerr, css);
+                iftb_dumpChunk(std::cerr, css);
             }
         }
     } else if (program.is_subcommand_used("merge")) {
@@ -206,7 +206,7 @@ int dispatch(argparse::ArgumentParser &program, config &conf) {
 }
 
 int main(int argc, char **argv) {
-    config conf;
+    iftb_config conf;
 
     argparse::ArgumentParser program("iftb");
 

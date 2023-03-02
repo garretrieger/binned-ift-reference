@@ -9,20 +9,8 @@
 
 #pragma once
 
-struct FeatureMap {
-    friend class chunker;
-    FeatureMap() {}
-    FeatureMap(const FeatureMap &fm) = delete;
-    FeatureMap(FeatureMap &&fm) {
-        startIndex = fm.startIndex;
-        ranges.swap(fm.ranges);
-    }
-    uint16_t startIndex = 0;
-    std::vector<std::pair<uint16_t, uint16_t>> ranges;
-};
-
 struct table_IFTB {
-    friend class chunker;
+    friend class iftb_chunker;
     friend bool randtest(std::string &s, uint32_t iterations);
 public:
     uint16_t getChunkCount() { return (uint16_t) chunkCount; }
@@ -80,6 +68,17 @@ public:
     }
     uint32_t *getID() { return id; }
 private:
+    struct FeatureMap {
+        friend class iftb_chunker;
+        FeatureMap() {}
+        FeatureMap(const FeatureMap &fm) = delete;
+        FeatureMap(FeatureMap &&fm) {
+            startIndex = fm.startIndex;
+            ranges.swap(fm.ranges);
+        }
+        uint16_t startIndex = 0;
+        std::vector<std::pair<uint16_t, uint16_t>> ranges;
+    };
     bool error(const char *m) {
         std::cerr << "IFTB table error: " << m << std::endl;
         return false;

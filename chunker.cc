@@ -14,16 +14,14 @@
 #include "streamhelp.h"
 #include "table_IFTB.h"
 
-std::unordered_set<uint32_t> default_features = { tag("abvm"), tag("blwm"),
-                                                  tag("ccmp"), tag("locl"),
-                                                  tag("mark"), tag("mkmk"),
-                                                  tag("rlig"), tag("calt"),
-                                                  tag("clig"), tag("curs"),
-                                                  tag("dist"), tag("kern"),
-                                                  tag("liga"), tag("rclt"),
-                                                  tag("numr") };
+std::unordered_set<uint32_t> iftb_default_features = {
+    tag("abvm"), tag("blwm"), tag("ccmp"), tag("locl"),
+    tag("mark"), tag("mkmk"), tag("rlig"), tag("calt"),
+    tag("clig"), tag("curs"), tag("dist"), tag("kern"),
+    tag("liga"), tag("rclt"), tag("numr")
+};
 
-uint32_t chunker::gid_size(uint32_t gid) {
+uint32_t iftb_chunker::gid_size(uint32_t gid) {
     uint32_t r = primaryRecs[gid].length;
     if (!is_cff && is_variable) {
         assert(secondaryRecs.size() > gid);
@@ -32,7 +30,7 @@ uint32_t chunker::gid_size(uint32_t gid) {
     return r;
 }
 
-uint32_t chunker::gid_set_size(const set &s) {
+uint32_t iftb_chunker::gid_set_size(const wr_set &s) {
     uint32_t r = 0, gid = HB_SET_VALUE_INVALID;
 
     while (s.next(gid)) {
@@ -41,7 +39,7 @@ uint32_t chunker::gid_set_size(const set &s) {
     return r;
 }
 
-void chunker::add_chunk(chunk &ch, hb_map_t *gid_chunk_map) {
+void iftb_chunker::add_chunk(iftb_chunk &ch, hb_map_t *gid_chunk_map) {
     uint32_t group_num = ch.group;
     uint32_t idx = chunks.size();
     uint32_t k = HB_SET_VALUE_INVALID;
@@ -54,10 +52,10 @@ void chunker::add_chunk(chunk &ch, hb_map_t *gid_chunk_map) {
     ch.group = group_num;
 }
 
-void chunker::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
-                                set &remaining_points,
-                                std::unique_ptr<group_wrapper> &g) {
-    chunk ch;
+void iftb_chunker::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
+                                     wr_set &remaining_points,
+                                     std::unique_ptr<iftb_group_wrapper> &g) {
+    iftb_chunk ch;
     ch.group = group_num;
     uint32_t codepoint = HB_SET_VALUE_INVALID;
     while(g->next(codepoint)) {
@@ -89,8 +87,8 @@ void chunker::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
         add_chunk(ch, gid_chunk_map);
 }
 
-chunk &chunker::current_chunk(uint32_t &chid) {
-    chunk *r = &chunks[chid];
+iftb_chunk &iftb_chunker::current_chunk(uint32_t &chid) {
+    iftb_chunk *r = &chunks[chid];
     while (r->merged_to != -1) {
         chid = r->merged_to;
         r = &chunks[chid];
@@ -98,8 +96,8 @@ chunk &chunker::current_chunk(uint32_t &chid) {
     return *r;
 }
 
-void chunker::process_overlaps(uint32_t gid, uint32_t chid,
-                               std::vector<uint32_t> &v) {
+void iftb_chunker::process_overlaps(uint32_t gid, uint32_t chid,
+                                    std::vector<uint32_t> &v) {
     bool move = false;
     uint32_t nid;
     auto &ch = current_chunk(chid);
@@ -146,10 +144,10 @@ void chunker::process_overlaps(uint32_t gid, uint32_t chid,
     }
 }
 
-void chunker::process_candidates(uint32_t gid, set &remaining_gids,
-                                 std::vector<uint32_t> &v) {
+void iftb_chunker::process_candidates(uint32_t gid, wr_set &remaining_gids,
+                                      std::vector<uint32_t> &v) {
     uint32_t size = std::numeric_limits<uint32_t>::max();
-    chunk *c;
+    iftb_chunk *c;
     for (auto i: v) {
         if (size > chunks[i].size) {
             size = chunks[i].size;
@@ -162,10 +160,11 @@ void chunker::process_candidates(uint32_t gid, set &remaining_gids,
     remaining_gids.del(gid);
 }
 
-void chunker::process_feature_candidates(uint32_t feat, set &gids,
-                                         uint32_t gid,
-                                         std::map<uint32_t, chunk> &fchunks,
-                                         std::vector<uint32_t> &v) {
+void iftb_chunker::process_feature_candidates(uint32_t feat, wr_set &gids,
+                                              uint32_t gid,
+                                              std::map<uint32_t, iftb_chunk>
+                                                  &fchunks,
+                                              std::vector<uint32_t> &v) {
     uint32_t size = std::numeric_limits<uint32_t>::max();
     uint32_t cidx = (uint32_t) -1;
     assert(gids.has(gid));
@@ -186,7 +185,7 @@ void chunker::process_feature_candidates(uint32_t feat, set &gids,
         }
     }
     if (add) {
-        chunk c;
+        iftb_chunk c;
         c.feat = feat;
         c.size = gid_size(gid);
         c.from_min = c.from_max = cidx;
@@ -203,22 +202,22 @@ void chunker::process_feature_candidates(uint32_t feat, set &gids,
 }
 
 
-int chunker::process(std::string &input_string) {
+int iftb_chunker::process(std::string &input_string) {
     uint32_t codepoint, gid, feat, last_gid;
-    set scratch1, scratch2, remaining_gids, remaining_points;
+    wr_set scratch1, scratch2, remaining_gids, remaining_points;
     int idx;
     unsigned flags;
     bool printed;
     hb_set_t *t;
     hb_subset_plan_t *plan;
     hb_map_t *map, *gid_chunk_map;
-    chunk base;
+    iftb_chunk base;
     simpleistream sis;
     simplestream ss;
-    std::vector<chunk> tchunks;
-    wrapped_groups wg;
-    std::unordered_map<uint32_t, set> feature_gids;
-    std::unique_ptr<group_wrapper> wrap_rp;
+    std::vector<iftb_chunk> tchunks;
+    iftb_wrapped_groups wg;
+    std::unordered_map<uint32_t, wr_set> feature_gids;
+    std::unique_ptr<iftb_group_wrapper> wrap_rp;
     std::unordered_multimap<uint32_t, uint32_t> chunk_overlap;
     std::unordered_multimap<uint32_t, uint32_t> candidate_chunks;
     std::unordered_map<uint32_t, std::unordered_multimap<uint32_t, uint32_t>>
@@ -333,7 +332,7 @@ int chunker::process(std::string &input_string) {
         }
     } else {
         {
-            blob headBlob = hb_face_reference_table(subface.f, T_HEAD);
+            wr_blob headBlob = hb_face_reference_table(subface.f, T_HEAD);
             unsigned int hl;
             uint16_t tt;
             const char *hb = hb_blob_get_data(headBlob.b, &hl);
@@ -451,7 +450,7 @@ int chunker::process(std::string &input_string) {
     feat = HB_SET_VALUE_INVALID;
     t = input.set(HB_SUBSET_SETS_LAYOUT_FEATURE_TAG);
     while (all_features.next(feat)) {
-        if (default_features.find(feat) != default_features.end())
+        if (iftb_default_features.find(feat) != iftb_default_features.end())
             continue;
         hb_set_set(t, all_features.s);
         hb_set_del(t, feat);
@@ -535,7 +534,7 @@ int chunker::process(std::string &input_string) {
         group_num++;
     }
     scratch1.copy(remaining_points);
-    wrap_rp = std::make_unique<set_wrapper>(scratch1);
+    wrap_rp = std::make_unique<iftb_config::set_wrapper>(scratch1);
     make_group_chunks(group_num, gid_chunk_map, remaining_points, wrap_rp);
     assert(remaining_points.is_empty());
     wg.clear();
@@ -672,7 +671,7 @@ int chunker::process(std::string &input_string) {
         if (tchunks.size() == 0)
             tchunks.push_back(std::move(i));
         else {
-            chunk &tch = tchunks.back();
+            iftb_chunk &tch = tchunks.back();
             if (tch.size + i.size <= conf.target_chunk_size)
                 tch.merge(i, true);
             else
@@ -723,8 +722,8 @@ int chunker::process(std::string &input_string) {
     uint32_t nonfeat_chunkcount = chunks.size();
 
     for (auto &f: feature_candidate_chunks) {
-        set &gids = feature_gids[f.first];
-        std::map<uint32_t, chunk> fchunks;
+        wr_set &gids = feature_gids[f.first];
+        std::map<uint32_t, iftb_chunk> fchunks;
         base.reset();
         base.feat = f.first;
         fchunks.emplace(0, std::move(base));
@@ -846,9 +845,9 @@ int chunker::process(std::string &input_string) {
         tiftb.gidMap.push_back(hb_map_get(all_gids, i));
 
     uint32_t curr_feat = 0;
-    FeatureMap fm;
+    table_IFTB::FeatureMap fm;
     for (uint32_t i = nonfeat_chunkcount; i < chunks.size(); i++) {
-        chunk &c = chunks[i];
+        iftb_chunk &c = chunks[i];
         if (curr_feat != c.feat) {
             if (curr_feat != 0)
                 tiftb.featureMap.emplace(curr_feat, std::move(fm));
@@ -890,7 +889,7 @@ int chunker::process(std::string &input_string) {
         css.clear();
         c.compile(css, idx, tiftb.id, table1, primaryRecs, table2,
                   secondaryRecs);
-        std::string zchunk = chunk::encode(css);
+        std::string zchunk = iftb_chunk::encode(css);
         cfile.open(conf.chunkPath(idx), std::ios::trunc | std::ios::binary);
         cfile.write(zchunk.data(), zchunk.size());
         cfile.close();
@@ -901,7 +900,7 @@ int chunker::process(std::string &input_string) {
     tiftb.chunkOffsets.push_back(chunkOffset);
     rangefile.close();
 
-    set &c0g = chunks[0].gids;
+    wr_set &c0g = chunks[0].gids;
 
     ss.clear();
 

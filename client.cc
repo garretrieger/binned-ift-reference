@@ -7,17 +7,17 @@ bool iftb_client::loadFont(std::string &s, bool keepGIDMap) {
 }
 
 bool iftb_client::loadFont(char *buf, uint32_t length, bool keepGIDMap) {
-    uint32_t tg = decodeBuffer(buf, length, fontData, extraPercent());
+    uint32_t tg = iftb_decodeBuffer(buf, length, fontData, extraPercent());
     if (tg != 0x00010000 && tg != tag("OTTO") && tg != tag("IFTB"))
         return error("Unrecognized font type.");
 
-    sf.setBuffer(fontData);
-    if (!sf.read()) {
+    sfnt.setBuffer(fontData);
+    if (!sfnt.read()) {
         failed = true;
         return false;
     }
 
-    if (!sf.getTableStream(ss, T_IFTB))
+    if (!sfnt.getTableStream(ss, T_IFTB))
         return error("No IFTB table in font");
 
     if (!tiftb.decompile(ss)) {
@@ -25,14 +25,14 @@ bool iftb_client::loadFont(char *buf, uint32_t length, bool keepGIDMap) {
         return false;
     }
 
-    if (!sf.getTableStream(ss, T_CMAP))
+    if (!sfnt.getTableStream(ss, T_CMAP))
         return error("No cmap table in font");
 
     if (!tiftb.addcmap(ss, keepGIDMap)) {
         failed = true;
         return false;
     }
-    m.setID(tiftb.getID());
+    merger.setID(tiftb.getID());
 
     return true;
 }
@@ -48,7 +48,7 @@ bool iftb_client::addChunk(uint16_t idx, char *buf, uint32_t length,
     } else if (pendingChunks.find(idx) == pendingChunks.end()) {
         return error("Cannot add chunk index that is not pending");
     }
-    uint32_t tg = decodeBuffer(buf, length, m.stringForChunk(idx));
+    uint32_t tg = iftb_decodeBuffer(buf, length, merger.stringForChunk(idx));
     if (tg != tag("IFTC"))
         return error("File type for chunk is not IFTC");
     return true;
@@ -56,7 +56,7 @@ bool iftb_client::addChunk(uint16_t idx, char *buf, uint32_t length,
 
 bool iftb_client::canMerge() {
     for (auto i: pendingChunks)
-        if (!m.hasChunk(i)) {
+        if (!merger.hasChunk(i)) {
             std::cerr << "Can't merge: missing chunk " << i << std::endl;
             return false;
         }
@@ -71,10 +71,10 @@ bool iftb_client::merge(bool asIFTB) {
     if (!canMerge())
         return false;
 
-    if (!m.unpackChunks())
+    if (!merger.unpackChunks())
         return false;
 
-    uint32_t newLength = m.calcLayout(sf, tiftb.getGlyphCount(),
+    uint32_t newLength = merger.calcLayout(sfnt, tiftb.getGlyphCount(),
                                       tiftb.getCharStringOffset());
     if (newLength == 0)
         return false;
@@ -88,19 +88,19 @@ bool iftb_client::merge(bool asIFTB) {
         fontData.resize(newLength, 0);
     }
     // merge method reassigns sfnt's buffer.
-    if (!m.merge(sf, fontData.data(), newBuf))
+    if (!merger.merge(sfnt, fontData.data(), newBuf))
         return false;
     tiftb.updateChunkSet(pendingChunks);
-    if (!sf.getTableStream(ss, T_IFTB))
+    if (!sfnt.getTableStream(ss, T_IFTB))
         return false;
     tiftb.writeChunkSet(ss, true);
-    if (!sf.recalcTableChecksum(T_IFTB))
+    if (!sfnt.recalcTableChecksum(T_IFTB))
         return false;
-    if (!sf.write(asIFTB))
+    if (!sfnt.write(asIFTB))
         return false;
     if (swapping)
         fontData.swap(newString);
-    m.reset();
+    merger.reset();
     pendingChunks.clear();
     return true;
 }

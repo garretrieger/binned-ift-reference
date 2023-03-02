@@ -3,7 +3,7 @@
 
 #include "config.h"
 
-void config::setNumChunks(uint16_t numChunks) {
+void iftb_config::setNumChunks(uint16_t numChunks) {
     uint8_t nbits = ilogb(numChunks) + 1, nhd; 
     chunk_hex_digits = nbits / 4;
     if (nbits % 4)
@@ -11,7 +11,7 @@ void config::setNumChunks(uint16_t numChunks) {
     makeChunkDirs();
 }
 
-void config::load_points(YAML::Node n, set &s) {
+void iftb_config::load_points(YAML::Node n, wr_set &s) {
     for (int k = 0; k < n.size(); k++) {
         if (n[k].IsScalar())
             s.add(n[k].as<uint32_t>());
@@ -25,7 +25,7 @@ void config::load_points(YAML::Node n, set &s) {
     }
 }
 
-void config::load_ordered_points(YAML::Node n, std::vector<uint32_t> &v) {
+void iftb_config::load_ordered_points(YAML::Node n, std::vector<uint32_t> &v) {
     for (int k = 0; k < n.size(); k++) {
         if (n[k].IsScalar()) {
             uint32_t p = n[k].as<uint32_t>();
@@ -38,7 +38,7 @@ void config::load_ordered_points(YAML::Node n, std::vector<uint32_t> &v) {
     }
 }
 
-bool config::prepDir(std::filesystem::path &p, bool thrw) {
+bool iftb_config::prepDir(std::filesystem::path &p, bool thrw) {
     std::string e;
     if (std::filesystem::exists(p)) {
         if (!std::filesystem::is_directory(p)) {
@@ -70,7 +70,7 @@ bool config::prepDir(std::filesystem::path &p, bool thrw) {
     return true;
 }
 
-int config::load(std::string p, bool is_default) {
+int iftb_config::load(std::string p, bool is_default) {
     auto yc = YAML::LoadFile(p.c_str());
 
     load_points(yc["base_points"], base_points);
@@ -83,7 +83,7 @@ int config::load(std::string p, bool is_default) {
     }
     auto unordered = yc["unordered_point_sets"];
     for (int k = 0; k < unordered.size(); k++) {
-        set s;
+        wr_set s;
         load_points(unordered[k], s);
         s.subtract(used_points);
         used_points._union(s);

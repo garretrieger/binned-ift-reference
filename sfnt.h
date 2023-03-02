@@ -14,28 +14,29 @@
 
 #pragma once
 
-struct Table {
-    Table() {}
-    Table(const Table &t) : checksum(t.checksum), offset(t.offset),
-                            length(t.length), entryOffset(t.entryOffset),
-                            entryNum(t.entryNum) {}
-    uint32_t checksum {0};
-    uint32_t offset {0};
-    uint32_t length {0};
-
-    uint32_t entryOffset {0};
-    uint32_t entryNum {0};
-
-    // Size of entry in sfnt table
-    static const uint32_t entry_size = sizeof(uint32_t) * 4;
-    static std::set<uint32_t> known_tables;
-};
-
-class sfnt {
+class iftb_sfnt {
  public:
-    sfnt() {}
-    sfnt(char *b, uint32_t l, bool so = false) : sfntOnly(so), ss(b, l) { }
-    sfnt(std::string &s, bool so = false) : sfntOnly(so), ss(s.data(), s.size()) { }
+    struct Table {
+        Table() {}
+        Table(const Table &t) : checksum(t.checksum), offset(t.offset),
+                                length(t.length), entryOffset(t.entryOffset),
+                                entryNum(t.entryNum) {}
+        uint32_t checksum {0};
+        uint32_t offset {0};
+        uint32_t length {0};
+
+        uint32_t entryOffset {0};
+        uint32_t entryNum {0};
+
+        // Size of entry in sfnt table
+        static const uint32_t entry_size = sizeof(uint32_t) * 4;
+        static std::set<uint32_t> known_tables;
+    };
+    iftb_sfnt() {}
+    iftb_sfnt(char *b, uint32_t l, bool so = false) :
+        sfntOnly(so), ss(b, l) { }
+    iftb_sfnt(std::string &s, bool so = false) :
+        sfntOnly(so), ss(s.data(), s.size()) { }
     void setBuffer(std::string &s, bool so = false) {
         setBuffer(s.data(), s.size(), so);
     }

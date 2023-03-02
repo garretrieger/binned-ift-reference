@@ -5,14 +5,14 @@
 
 #include "sfnt.h"
 #include "table_IFTB.h"
-#include "unchunk.h"
+#include "merger.h"
 #include "streamhelp.h"
 
 #pragma once
 
 class iftb_client {
+ public:
     friend bool randtest(std::string &s, uint32_t iterations);
-public:
     iftb_client() {}
     bool loadFont(std::string &s, bool keepGIDMap = false);
     bool loadFont(char *buf, uint32_t length, bool keepGIDMap = false);
@@ -38,12 +38,12 @@ public:
     bool canMerge();
     bool merge(bool asIFTB = true);
     std::string &getFontAsString() { return fontData; }
-private:
+ private:
     static constexpr float extraPercent() { return 1.0; }
     table_IFTB tiftb;
-    sfnt sf;
+    iftb_sfnt sfnt;
     std::set<uint16_t> pendingChunks;
-    merger m;
+    iftb_merger merger;
     std::string fontData;
     simplestream ss;
     bool failed {false};

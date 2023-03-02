@@ -4,4 +4,4 @@
 
 #pragma once
 
-bool iftb_sanitize(std::string &s, config &conf);
+bool iftb_sanitize(std::string &s, iftb_config &conf);
