@@ -3,6 +3,11 @@
 
 #pragma once
 
+namespace iftb {
+    extern std::unordered_set<uint32_t> default_features;
+}
+
+// XXX with C++20 this could be consteval with static assertion.
 constexpr uint32_t tag(const char *s) {
     return s[0] << 24 | s[1] << 16 | s[2] << 8 | s[3];
 }
@@ -16,16 +21,20 @@ constexpr uint32_t tag(const char *s) {
 #define T_IFTB tag("IFTB")
 #define T_HEAD tag("head")
 
-inline void ptag(std::ostream &out, uint32_t tag) {
+struct otag {
+ public:
+    otag() = delete;
+    otag(uint32_t tg) : tg(tg) {}
+ private:
+    uint32_t tg;
+    friend std::ostream& operator<<(std::ostream &os, const otag &tg);
+};
+
+inline std::ostream& operator<<(std::ostream &os, const otag &p) {
     char o;
     for (int i = 3; i >= 0; i--) {
-        o = (char)(tag >> (8*i) & 0xff);
-        out << o;
+        o = (char)(p.tg >> (8*i) & 0xff);
+        os << o;
     }
+    return os;
 }
-
-inline uint32_t tagFromBuffer(const char *c) {
-    return (c[0] << 24) | (c[1] << 16) | c[2] << 8 | c[3];
-}
-
-extern std::unordered_set<uint32_t> iftb_default_features;

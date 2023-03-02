@@ -256,8 +256,7 @@ void iftb::dumpChunk(std::ostream &os, std::istream &is) {
 
     readObject(is, u32);
     if (u32 != tag("IFTC")) {
-        std::cerr << "Unrecognized chunk type '";
-        ptag(std::cerr, u32);
+        std::cerr << "Unrecognized chunk type '" << otag(u32);
         std::cerr << "': can't display contents" << std::endl;
         return;
     }
@@ -291,12 +290,10 @@ void iftb::dumpChunk(std::ostream &os, std::istream &is) {
     }
     std::cerr << std::endl;
     readObject(is, table1);
-    std::cerr << "Table 1: ";
-    ptag(std::cerr, table1);
+    std::cerr << "Table 1: " << otag(table1);
     if (tableCount == 2) {
-        std::cerr << ", Table 2: ";
         readObject(is, table2);
-        ptag(std::cerr, table2);
+        std::cerr << ", Table 2: " << otag(table2);
     }
     std::cerr << std::endl;
     readObject(is, lastOffset);
@@ -366,7 +363,7 @@ uint32_t iftb::decodeBuffer(char *buf, uint32_t length, std::string &s,
         buf = s.data();
         length = s.size();
     }
-    tg = tagFromBuffer(buf);
+    tg = tag(buf);
 
     if (tg == tag("wOF2"))
         is_woff2 = true;
@@ -386,7 +383,7 @@ uint32_t iftb::decodeBuffer(char *buf, uint32_t length, std::string &s,
         if (ok) {
             s.swap(t);
             t.clear();
-            tg = tagFromBuffer(s.data());
+            tg = tag(s.data());
         } else {
             tg = 0;
         }
@@ -395,7 +392,7 @@ uint32_t iftb::decodeBuffer(char *buf, uint32_t length, std::string &s,
         if (t.size() > 4) {
             s.swap(t);
             t.clear();
-            tg = tagFromBuffer(s.data());
+            tg = tag(s.data());
         } else {
             tg = 0;
         }

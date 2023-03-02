@@ -14,7 +14,7 @@
 #include "streamhelp.h"
 #include "table_IFTB.h"
 
-std::unordered_set<uint32_t> iftb_default_features = {
+std::unordered_set<uint32_t> iftb::default_features = {
     tag("abvm"), tag("blwm"), tag("ccmp"), tag("locl"),
     tag("mark"), tag("mkmk"), tag("rlig"), tag("calt"),
     tag("clig"), tag("curs"), tag("dist"), tag("kern"),
@@ -453,7 +453,7 @@ int iftb::chunker::process(std::string &input_string) {
     feat = HB_SET_VALUE_INVALID;
     t = input.set(HB_SUBSET_SETS_LAYOUT_FEATURE_TAG);
     while (all_features.next(feat)) {
-        if (iftb_default_features.find(feat) != iftb_default_features.end())
+        if (default_features.find(feat) != default_features.end())
             continue;
         hb_set_set(t, all_features.s);
         hb_set_del(t, feat);
@@ -490,9 +490,8 @@ int iftb::chunker::process(std::string &input_string) {
             if (conf.verbosity()) {
                 if (printed)
                     std::cerr << ", ";
-                ptag(std::cerr, a.first);
+                std::cerr << otag(a.first) << " (" << a.second.size() << ")";
                 printed = true;
-                std::cerr << " (" << a.second.size() << ")";
             }
             remaining_gids.subtract(a.second);
         }
@@ -747,8 +746,7 @@ int iftb::chunker::process(std::string &input_string) {
         if (gids.size() > 0) {
             if (conf.verbosity() > 1) {
                 std::cerr << f.second.size() << " gids remaining in feature ";
-                ptag(std::cerr, f.first);
-                std::cerr << std::endl;
+                std::cerr << otag(f.first) << std::endl;
             }
             gid = HB_SET_VALUE_INVALID;
             while (gids.next(gid)) {
@@ -803,9 +801,7 @@ int iftb::chunker::process(std::string &input_string) {
         if (conf.verbosity() > 1) {
             std::cerr << "Chunk " << idx << ": ";
             if (i.feat) {
-                std::cerr << "feature ";
-                ptag(std::cerr, i.feat);
-                std::cerr << ", ";
+                std::cerr << "feature " << otag(i.feat) << ", ";
             }
             std::cerr << i.codepoints.size() << " codepoints, ";
             std::cerr << i.gids.size() << " gids, ";

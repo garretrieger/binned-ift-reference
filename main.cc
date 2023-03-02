@@ -29,7 +29,7 @@ std::string loadPathAsString(std::filesystem::path &fpath,
     if (decompress)
         tg = iftb::decodeBuffer(NULL, 0, s);
     else
-        tg = tagFromBuffer(s.data());
+        tg = tag(s.data());
 
     if (tg != 0x00010000 && tg != tag("OTTO") &&
         tg != tag("IFTC") && tg != tag("IFTB") && tg != tag("IFTZ"))

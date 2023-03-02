@@ -227,8 +227,7 @@ bool iftb::sfnt::checkSums(bool full) {
                              table.length;
             nDirTableSum += table.checksum;
         }
-        // ptag(std::cerr, tg);
-        // std::cerr << " " << table.entryOffset << " " << table.checksum << " " << table.offset << " " << table.length << std::endl;
+        // std::cerr << otag(tg << " " << table.entryOffset << " " << table.checksum << " " << table.offset << " " << table.length << std::endl;
 
         if (tg == T_HEAD)
             headTableOffset = table.offset;
@@ -238,12 +237,11 @@ bool iftb::sfnt::checkSums(bool full) {
                 return false;
             if (table.checksum != checksum) {
                 good = false;
-                std::cerr << "Warning: '";
-                ptag(std::cerr, tg);
+                std::cerr << "Warning: '" << otag(tg);
                 std::cerr << "' bad checksum (found=";
                 std::cerr << std::hex << table.checksum;
-                std::cerr << ", calculated=";
-                std::cerr << std::hex << checksum;
+                std::cerr << ", calculated=" << checksum;
+                std::cerr << std::dec;
                 std::cerr << std::endl;
             }
         }
