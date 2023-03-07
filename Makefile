@@ -27,7 +27,7 @@ LDFLAGS := -Wl,-rpath ${HARFBUZZDIR}/build/src -L${HARFBUZZDIR}/build/src
 
 all: iftb iftb.js
 
-iftb: ${CLIOBJS}
+iftb: ${CLIOBJS} ${BUILDDIR}
 	${CXX} -o $@ ${CLIOBJS} ${LDFLAGS} ${LIBS}
 
 iftb.js: ${WASMSRCS:%=src/%} ${WOFF2SRCS:%=${WOFF2DIR}/%} ${BROTLISRCS:%=${BROTLIDIR}}
@@ -37,6 +37,8 @@ ${BUILDDIR}/%.o : ${SRCDIR}/%.cc ${DEPDIR}/%.d | ${DEPDIR}
 	${CXX} ${CXXFLAGS} ${DEPFLAGS} -o $@ -c $<
 
 ${DEPDIR}: ; @mkdir -p $@
+
+${BUILDDIR}: ; @mkdir -p $@
 
 clean:
 	${RM} iftb ${CLIOBJS} iftb.js iftb.wasm
