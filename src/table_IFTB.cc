@@ -96,16 +96,14 @@ uint32_t iftb::table_IFTB::compile(std::ostream &os, uint32_t offset) {
     writeObject(os, chunkOffsetTableOffset);
     writeObject(os, featureMapTableOffset);
     writeChunkSet(os);
-    assert(filesURI.length() < 256);
-    writeObject(os, (uint8_t) filesURI.length());
-    for (auto c: filesURI)
-        writeObject(os, c);
-    writeObject(os, (uint8_t) 0);  // Null terminator
-    assert(rangeFileURI.length() < 256);
-    writeObject(os, (uint8_t) rangeFileURI.length());
-    for (auto c: rangeFileURI)
-        writeObject(os, c);
-    writeObject(os, (uint8_t) 0);  // Null terminator
+
+    assert(filesURI.length() < 257);
+    writeObject(os, (uint8_t) (filesURI.length() - 1));
+    os.write(filesURI.data(), filesURI.length());
+    assert(rangeFileURI.length() < 257);
+    writeObject(os, (uint8_t) (rangeFileURI.length() - 1));
+    os.write(rangeFileURI.data(), rangeFileURI.length());
+
     gidMapTableOffset = ((uint32_t) os.tellp()) - offset;
     bool writing = false;
     for (uint32_t i = 0; i < glyphCount; i++) {
@@ -171,6 +169,7 @@ bool iftb::table_IFTB::decompile(std::istream &is, uint32_t offset) {
     readObject(is, chunkOffsetTableOffset);
     readObject(is, featureMapTableOffset);
     uint8_t u8;
+
     chunkSet.resize(chunkCount);
     uint32_t chunkBytes = (chunkCount + 7) / 8;
     for (uint32_t i=0; i < chunkBytes; i++) {
@@ -181,17 +180,16 @@ bool iftb::table_IFTB::decompile(std::istream &is, uint32_t offset) {
             chunkSet[i * 8 + j] = u8 & (1 << j);
         }
     }
+
     readObject(is, u8);
-    filesURI.resize(u8);
-    // XXX convert these to read()s
-    for (int i = 0; i < u8; i++)
-        readObject(is, filesURI[i]);
-    readObject<uint8_t>(is);  // Null terminator
+    filesURI.resize(u8 + 1);
+    is.read(filesURI.data(), u8 + 1);
+    filesURI[u8] = 0;  // To be safe
     readObject(is, u8);
-    rangeFileURI.resize(u8);
-    for (int i = 0; i < u8; i++)
-        readObject(is, rangeFileURI[i]);
-    readObject<uint8_t>(is);  // Null terminator
+    rangeFileURI.resize(u8 + 1);
+    is.read(rangeFileURI.data(), u8 + 1);
+    rangeFileURI[u8] = 0;  // To be safe
+
     is.seekg(offset + gidMapTableOffset);
     readObject(is, firstMappedGid);
     for (uint32_t i = 0; i < glyphCount; i++) {
@@ -269,24 +267,33 @@ void iftb::table_IFTB::dump(std::ostream &os, bool full) {
     os << "rangeFileURI: " << rangeFileURI << std::endl;
 }
 
-std::string iftb::table_IFTB::getChunkURI(uint16_t idx) {
+const char *iftb::table_IFTB::getChunkURI(uint16_t idx) {
     char buf[10];
     uint8_t digit;
     size_t pos = 0, lastPos = 0;
     snprintf(buf, sizeof(buf), "%08x", (int) idx);
 
-    std::string t;
-    while ((pos = filesURI.find('$', pos)) != std::string::npos) {
-        t += filesURI.substr(lastPos, pos-lastPos);
-        digit = (uint8_t) filesURI[pos+1] - 48;
-        if (digit > 8 || digit <= 0) {
-            error("Invalid filesURI string in IFTB table");
-            t.clear();
-            return t;
+    bool dollar = false;
+    uint16_t i = 0, o = 0;
+    char c;
+    while (filesURI[i] != 0) {
+        if (filesURI[i] == '$') {
+            i++;
+            if (filesURI[i] == '$')
+                c = '$';
+            else if (filesURI[i] > '0' && filesURI[i] <= '8')
+                c = buf[8 - (filesURI[i] - '0')];
+            else {
+                error("Invalid filesURI string in IFTB table");
+                fURIbuf[0] = 0;
+                return fURIbuf.data();
+            }
+        } else {
+            c = filesURI[i];
         }
-        t += buf[8 - digit];
-        lastPos = pos = pos + 2;
+        fURIbuf[o++] = c;
+        i++;
     }
-    t += filesURI.substr(lastPos);
-    return t;
+    fURIbuf[o] = 0;
+    return fURIbuf.data();
 }

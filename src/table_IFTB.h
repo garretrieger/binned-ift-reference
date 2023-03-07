@@ -1,4 +1,5 @@
 #include <map>
+#include <array>
 #include <string>
 #include <set>
 #include <vector>
@@ -15,13 +16,19 @@ namespace iftb {
 }
 
 class iftb::table_IFTB {
+public:
+    table_IFTB() {
+        filesURI.reserve(257);
+        filesURI.push_back(0);
+        rangeFileURI.reserve(257);
+        rangeFileURI.push_back(0);
+    }
     friend class iftb::chunker;
     friend bool randtest(std::string &s, uint32_t iterations);
-public:
     uint16_t getChunkCount() { return (uint16_t) chunkCount; }
     std::pair<uint32_t, uint32_t> getChunkRange(uint16_t cidx);
-    std::string getRangeFileURI() { return rangeFileURI; }
-    std::string getChunkURI(uint16_t idx);
+    std::string &getRangeFileURI() { return rangeFileURI; }
+    const char * getChunkURI(uint16_t idx);
     bool addcmap(std::istream &i, bool keepGIDMap = false) {
         bool r = readcmap(i, uniMap, &gidMap);
         if (r && !keepGIDMap)
@@ -97,5 +104,6 @@ private:
     std::map<uint32_t, FeatureMap> featureMap;
     std::vector<uint32_t> chunkOffsets;
     std::string filesURI, rangeFileURI;
+    std::array<char, 257> fURIbuf;
     std::unordered_map<uint32_t, uint16_t> uniMap;
 };

@@ -98,6 +98,7 @@ bool iftb::client::merge(bool asIFTB) {
         return false;
     if (!sfnt.write(asIFTB))
         return false;
+    isIFTB = asIFTB;
     if (swapping)
         fontData.swap(newString);
     merger.reset();
@@ -121,24 +122,10 @@ bool iftb::client::setPending(const std::vector<uint32_t> &unicodes,
 bool iftb::client::getPendingChunkList(std::vector<uint16_t> &cl) {
     if (!hasFont() or failed)
         return false;
-    if (pendingChunks.size() == 0)
-        return false;
     cl.clear();
     for (auto i: pendingChunks)
         cl.push_back(i);
     return true;
-}
-
-std::string iftb::client::getRangeFileURI() {
-    if (!hasFont() or failed)
-        return "";
-    return tiftb.getRangeFileURI();
-}
-
-std::string iftb::client::getChunkURI(uint16_t cidx) {
-    if (!hasFont() or failed)
-        return "";
-    return tiftb.getChunkURI(cidx);
 }
 
 std::pair<uint32_t, uint32_t> iftb::client::getChunkRange(uint16_t cidx) {

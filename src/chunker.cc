@@ -963,7 +963,9 @@ int iftb::chunker::process(std::string &input_string) {
     }
 
     tiftb.filesURI = conf.filesURI();
+    tiftb.filesURI.push_back(0);
     tiftb.rangeFileURI = conf.rangeFileURI();
+    tiftb.rangeFileURI.push_back(0);
 
     hb_face_t *fbldr = hb_face_builder_create();
     hb_face_builder_set_font_type(fbldr, T_IFTB);
