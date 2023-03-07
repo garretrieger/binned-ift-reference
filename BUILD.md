@@ -5,6 +5,20 @@ command-line utility called `iftb` and a wasm client object split
 between `iftb.js` and `iftb.wasm` files.  These can be built
 separately if desired.
 
+# Homebrew Prerequisites
+
+I had good luck getting the dependencies discussed below with these commands:
+
+```
+brew install meson
+brew install yaml-cpp
+brew install emscripten
+brew install woff2
+```
+
+(Note that `emscripten` pulls in a number of other dependencies, including
+ `brotli`.)
+
 # `iftb`
 
 The `iftb` code is writen in C++ and requires the normal C++ build
@@ -38,7 +52,7 @@ dependencies:
 
 To build the modified `harfbuzz` you can start by populating the git submodules
 by running `git submodule update --init --recursive` in the top-level directory.
-Then go into the `harfbuzz` directory and run `mason build`, and after that cd
+Then go into the `harfbuzz` directory and run `meson build`, and after that cd
 into the `build` directory and run `ninja`. The top-level Makefile should then
 have what it needs to link the `iftb` command (assuming the other dependencies
 are installed). You can run `make iftb` to build just the command.
