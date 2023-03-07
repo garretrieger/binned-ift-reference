@@ -1,0 +1,8 @@
+[submodule "woff2"]
+	path = woff2
+	url = https://github.com/google/woff2
+	branch = master
+[submodule "harfbuzz"]
+	path = harfbuzz
+	url = https://github.com/skef/harfbuzz
+	branch = chunkmods
