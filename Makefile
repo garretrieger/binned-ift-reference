@@ -18,13 +18,13 @@ EMXX := emcc
 CLISRCS := ${CLIBASES:%=${SRCDIR}/%.cc}
 CLIOBJS := ${CLIBASES:%=${BUILDDIR}/%.o}
 # CFLAGS := -I${HARFBUZZDIR}/src -g -fsanitize=address
-# CFLAGS := -I${HARFBUZZDIR}/src -I/opt/homebrew/include -g
+# CFLAGS := -I${HARFBUZZDIR}/src -I${WOFF2DIR}/include -I/opt/homebrew/include -g
 CFLAGS := -I${HARFBUZZDIR}/src -I${WOFF2DIR}/include -g
 CXXFLAGS := ${CFLAGS} -std=c++17
 EMXXSETS := -s ALLOW_MEMORY_GROWTH=1 -s MALLOC=emmalloc -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT=web -s EXPORTED_RUNTIME_METHODS='["AsciiToString"]' -s ERROR_ON_UNDEFINED_SYMBOLS=1
 EMXXDEFS := -Os --closure 1 ${EMXXSETS}
 LIBS := -lharfbuzz-subset -lharfbuzz -lyaml-cpp -lbrotlienc -lwoff2enc -lbrotlidec -lwoff2dec
-# LDFLAGS := -Wl,-rpath ${HARFBUZZDIR}/build/src -L${HARFBUZZDIR}/build/src -L/opt/homebrew/lib
+# LDFLAGS := -Wl,-rpath ${HARFBUZZDIR}/build/src:${WOFF2DIR}/build -L${HARFBUZZDIR}/build/src -L${WOFF2DIR}/build -L/opt/homebrew/lib
 LDFLAGS := -Wl,-rpath ${HARFBUZZDIR}/build/src:${WOFF2DIR}/build/ -L${HARFBUZZDIR}/build/src -L${WOFF2DIR}/build
 
 all: iftb iftb.js
