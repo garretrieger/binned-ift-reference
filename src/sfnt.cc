@@ -133,6 +133,17 @@ bool iftb::sfnt::write(bool asIFTB, bool writeHead) {
     return true;
 }
 
+void iftb::sfnt::dump(std::ostream &os) {
+    os << "Sfnt tables:" << std::endl;
+    ss.seekg(header_size);
+    for (int i = 0; i < numTables; i++) {
+        os << "  Tag:      " << otag(readObject<uint32_t>(ss)) << std::endl;
+        os << "  Checksum: " << readObject<uint32_t>(ss) << std::endl;
+        os << "  Offset:   " << readObject<uint32_t>(ss) << std::endl;
+        os << "  Length:   " << readObject<uint32_t>(ss) << std::endl;
+    }
+}
+
 bool iftb::sfnt::adjustTable(uint32_t tg, uint32_t offset, uint32_t length,
                              bool rechecksum) {
     assert(Table::known_tables.find(tg) != Table::known_tables.end());
@@ -180,8 +191,9 @@ bool iftb::sfnt::calcTableChecksum(const Table &table, uint32_t &checksum,
     }
     ss.seekg(p);
 
-    if (ss.fail())
+    if (ss.fail()) {
         return error("Stream failure when calculating checksum");
+    }
     return true;
 }
 

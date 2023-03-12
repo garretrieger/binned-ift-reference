@@ -69,6 +69,11 @@ const char *iftb_chunk_file_uri(void *v, uint16_t cidx) {
     return cl->getChunkURI(cidx);
 }
 
+uint32_t iftb_get_chunk_offset(void *v, uint16_t cidx) {
+    iftb::wasm_wrapper *cl = static_cast<iftb::wasm_wrapper *>(v);
+    return cl->getChunkOffset(cidx);
+}
+
 uint8_t *iftb_reserve_chunk_data(void *v, uint16_t cidx,
                                         uint32_t length) {
     iftb::wasm_wrapper *cl = static_cast<iftb::wasm_wrapper *>(v);

@@ -50,6 +50,7 @@ class iftb::sfnt {
     }
     bool read();
     bool write(bool asIFTB, bool writeHead = true);
+    void dump(std::ostream &os);
     bool has(uint32_t tg) {
         assert(Table::known_tables.find(tg) != Table::known_tables.end());
         return directory.find(tg) != directory.end();

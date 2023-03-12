@@ -130,6 +130,12 @@ bool iftb::client::getPendingChunkList(std::vector<uint16_t> &cl) {
 
 std::pair<uint32_t, uint32_t> iftb::client::getChunkRange(uint16_t cidx) {
     if (!hasFont() or failed)
-        std::pair<uint32_t, uint32_t>(0,0);
+        return std::pair<uint32_t, uint32_t>(0,0);
     return tiftb.getChunkRange(cidx);
+}
+
+uint32_t iftb::client::getChunkOffset(uint16_t cidx) {
+    if (!hasFont() or failed)
+        return 0;
+    return tiftb.getChunkOffset(cidx);
 }

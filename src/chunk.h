@@ -37,10 +37,8 @@ class iftb::chunk {
         from_min = from_max = 0;
         merged_to = (uint32_t) -1;
     }
-    void merge(chunk &c, bool permissive = false) {
+    void merge(chunk &c) {
         assert(feat == c.feat);
-        if (!permissive)
-            assert(group == c.group);
         assert(c.merged_to == -1);
         codepoints._union(c.codepoints);
         gids._union(c.gids);
@@ -48,6 +46,16 @@ class iftb::chunk {
         assert(feat == 0 || (from_max < c.from_min));
         from_max = c.from_max;
     }
+    bool mergeable(chunk &c, bool permissive = false) {
+        if (feat != c.feat)
+            return false;
+        if (feat != 0) {
+            // Only merge directly adjacent feature chunks
+            return (from_max + 1) == c.from_min;
+        }
+        return (permissive || group == c.group);
+    }
+
     void compile(std::ostream &os, uint16_t idx,
                  uint32_t *id,
                  uint32_t table1,

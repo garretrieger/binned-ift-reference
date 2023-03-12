@@ -12,6 +12,7 @@ _iftb_get_pending_list_count
 _iftb_get_pending_list_location
 _iftb_range_file_uri
 _iftb_chunk_file_uri
+_iftb_get_chunk_offset
 _iftb_reserve_chunk_data
 _iftb_use_chunk_data
 _iftb_can_merge

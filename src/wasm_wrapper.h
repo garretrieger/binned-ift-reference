@@ -23,7 +23,7 @@ class iftb::wasm_wrapper {
         i.first->second.resize(length);
         return i.first->second.data();
     }
-    bool loadFont() { 
+    bool loadFont() {
         if (buffers.find(0) == buffers.end())
             return error("No font buffer allocated");
         bool r = cl.loadFont(buffers[0]);
@@ -57,6 +57,7 @@ class iftb::wasm_wrapper {
     }
     const char *getRangeFileURI() { return cl.getRangeFileURI().data(); }
     const char *getChunkURI(uint16_t cidx) { return cl.getChunkURI(cidx); }
+    uint32_t getChunkOffset(uint16_t cidx) { return cl.getChunkOffset(cidx); }
     bool addChunkFromBuffer(uint16_t cidx, int setPending) {
         if (cidx == 0)
             return error("Attempt to add chunk 0");
@@ -102,6 +103,7 @@ extern uint16_t iftb_get_pending_list_count(void *v);
 extern uint16_t *iftb_get_pending_list_location(void *v);
 extern const char *iftb_range_file_uri(void *v);
 extern const char *iftb_chunk_file_uri(void *v, uint16_t cidx);
+extern uint32_t iftb_get_chunk_offset(void *v, uint16_t cidx);
 extern uint8_t *iftb_reserve_chunk_data(void *v, uint16_t cidx,
                                         uint32_t length);
 extern int iftb_use_chunk_data(void *v, uint16_t cidx, int forcePending);

@@ -11,6 +11,38 @@ void iftb::config::setNumChunks(uint16_t numChunks) {
     makeChunkDirs();
 }
 
+bool iftb::config::unicodesForPreload(std::string &tag,
+                                      std::set<uint32_t> &unicodes) {
+    std::unique_ptr<group_wrapper> wg;
+    bool has = false;
+
+    unicodes.clear();
+    for (auto &gi: group_info) {
+        bool found = false;
+        for (auto &s: gi.preloads) {
+            if (s == tag) {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            continue;
+        has = true;
+        if (verbosity())
+            std::cerr << "Adding point group " << gi.name << std::endl;
+        if (gi.is_ordered) {
+            wg = std::make_unique<vec_wrapper>(ordered_point_groups[gi.index]);
+        } else {
+            wg = std::make_unique<set_wrapper>(point_groups[gi.index]);
+        }
+        uint32_t cp = -1;
+        while (wg->next(cp))
+            unicodes.insert(cp);
+    }
+    return has;
+}
+
+
 void iftb::config::load_points(YAML::Node n, iftb::wr_set &s) {
     for (int k = 0; k < n.size(); k++) {
         if (n[k].IsScalar())
@@ -36,6 +68,31 @@ void iftb::config::load_ordered_points(YAML::Node n, std::vector<uint32_t> &v) {
         } else
             throw YAML::Exception(n[k].Mark(), "Point must be an integer");
     }
+}
+
+void iftb::config::loadPointGroup(YAML::Node n, bool is_ordered) {
+    point_group_info pgi;
+    pgi.name = n["name"].Scalar();
+    if (n["preloads"].IsSequence()) {
+        auto ln = n["preloads"];
+        for (int i = 0; i < ln.size(); i++)
+            pgi.preloads.push_back(ln[i].Scalar());
+    }
+    pgi.is_ordered = is_ordered;
+    if (is_ordered) {
+        pgi.index = ordered_point_groups.size();
+        std::vector<uint32_t> b;
+        load_ordered_points(n["points"], b);
+        ordered_point_groups.push_back(std::move(b));
+    } else {
+        pgi.index = point_groups.size();
+        iftb::wr_set s;
+        load_points(n["points"], s);
+        s.subtract(used_points);
+        used_points._union(s);
+        point_groups.push_back(std::move(s));
+    }
+    group_info.push_back(std::move(pgi));
 }
 
 bool iftb::config::prepDir(std::filesystem::path &p, bool thrw) {
@@ -76,19 +133,11 @@ int iftb::config::load(std::string p, bool is_default) {
     load_points(yc["base_points"], base_points);
     used_points.copy(base_points);
     auto ordered = yc["ordered_point_sets"];
-    for (int k = 0; k < ordered.size(); k++) {
-        std::vector<uint32_t> b;
-        load_ordered_points(ordered[k], b);
-        ordered_point_groups.push_back(std::move(b));
-    }
+    for (int k = 0; k < ordered.size(); k++)
+        loadPointGroup(ordered[k], true);
     auto unordered = yc["unordered_point_sets"];
-    for (int k = 0; k < unordered.size(); k++) {
-        iftb::wr_set s;
-        load_points(unordered[k], s);
-        s.subtract(used_points);
-        used_points._union(s);
-        point_groups.push_back(std::move(s));
-    }
+    for (int k = 0; k < unordered.size(); k++)
+        loadPointGroup(unordered[k], false);
     auto feat_sub_cut = yc["feature_subset_cutoff"];
     if (feat_sub_cut.IsScalar())
         feat_subset_cutoff = feat_sub_cut.as<uint32_t>();

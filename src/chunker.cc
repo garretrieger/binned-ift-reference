@@ -14,11 +14,22 @@
 #include "streamhelp.h"
 #include "table_IFTB.h"
 
+// Default features from
+// https://github.com/w3c/IFT/blob/main/feature-registry.csv
 std::unordered_set<uint32_t> iftb::default_features = {
-    tag("abvm"), tag("blwm"), tag("ccmp"), tag("locl"),
-    tag("mark"), tag("mkmk"), tag("rlig"), tag("calt"),
-    tag("clig"), tag("curs"), tag("dist"), tag("kern"),
-    tag("liga"), tag("rclt"), tag("numr")
+    tag("abvf"), tag("abvm"), tag("abvs"), tag("akhn"), tag("blwf"),
+    tag("blwm"), tag("blws"), tag("calt"), tag("ccmp"), tag("cfar"),
+    tag("chws"), tag("cjct"), tag("clig"), tag("cswh"), tag("curs"),
+    tag("dist"), tag("dnom"), tag("dtls"), tag("fin2"), tag("fin3"),
+    tag("fina"), tag("flac"), tag("frac"), tag("half"), tag("haln"),
+    tag("init"), tag("isol"), tag("jalt"), tag("kern"), tag("liga"),
+    tag("ljmo"), tag("locl"), tag("ltra"), tag("ltrm"), tag("mark"),
+    tag("med2"), tag("medi"), tag("mkmk"), tag("mset"), tag("nukt"),
+    tag("numr"), tag("pref"), tag("pres"), tag("pstf"), tag("psts"),
+    tag("rand"), tag("rclt"), tag("rkrf"), tag("rlig"), tag("rphf"),
+    tag("rtla"), tag("rtlm"), tag("rvrn"), tag("ssty"), tag("stch"),
+    tag("tjmo"), tag("valt"), tag("vatu"), tag("vchw"), tag("vert"),
+    tag("vjmo"), tag("vkrn"), tag("vpal"), tag("vrt2"), tag("vrtr")
 };
 
 uint32_t iftb::chunker::gid_size(uint32_t gid) {
@@ -74,6 +85,10 @@ void iftb::chunker::make_group_chunks(int group_num, hb_map_t *gid_chunk_map,
                 std::cerr << std::endl;
             }
             ech.codepoints.add(codepoint);
+            continue;
+        }
+        if (ch.gids.has(gid)) {
+            ch.codepoints.add(codepoint);
             continue;
         }
         uint32_t size = gid_size(gid);
@@ -137,7 +152,8 @@ void iftb::chunker::process_overlaps(uint32_t gid, uint32_t chid,
                     std::cerr << "Merging chunk " << nid << " into chunk ";
                     std::cerr << chid << std::endl;
                 }
-                ch.merge(chv, true);
+                assert(ch.mergeable(chv, true));
+                ch.merge(chv);
                 chv.merged_to = chid;
             }
         }
@@ -674,8 +690,9 @@ int iftb::chunker::process(std::string &input_string) {
             tchunks.push_back(std::move(i));
         else {
             iftb::chunk &tch = tchunks.back();
-            if (tch.size + i.size <= conf.target_chunk_size)
-                tch.merge(i, true);
+            if (tch.mergeable(i) &&
+                tch.size + i.size <= conf.target_chunk_size)
+                tch.merge(i);
             else
                 tchunks.push_back(std::move(i));
         }
@@ -758,7 +775,7 @@ int iftb::chunker::process(std::string &input_string) {
         for (auto &ii: fchunks) {
             auto &bch = chunks.back();
             auto &i = ii.second;
-            if (   bch.feat != i.feat
+            if (   !bch.mergeable(i)
                 || bch.size + i.size > conf.target_chunk_size) {
                 if (i.gids.size() > 0)
                     chunks.push_back(std::move(i));
@@ -1042,6 +1059,7 @@ int iftb::chunker::process(std::string &input_string) {
     std::string woff2_out(woff2_size, 0);
 
     woff2::WOFF2Params params;
+    params.preserve_table_order = true;
     if (!woff2::ConvertTTFToWOFF2((uint8_t *)data, size, (uint8_t *)woff2_out.data(), &woff2_size, params))
         throw std::runtime_error("Could not WOFF2 compress font");
     woff2_out.resize(woff2_size);

@@ -28,6 +28,9 @@ bool iftb::sanitize(std::string &s, iftb::config &conf) {
     if (!tiftb.decompile(ss))
         return false;
 
+    if (conf.verbosity() > 2)
+        sfnt.dump(std::cerr);
+
     if (conf.verbosity())
         tiftb.dump(std::cerr);
 

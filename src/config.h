@@ -99,6 +99,8 @@ class iftb::config {
         }
     }
 
+    bool unicodesForPreload(std::string &tag,
+                            std::set<uint32_t> &unicodes);
     bool prepDir(std::filesystem::path &p, bool thrw = true);
     void load_points(YAML::Node n, iftb::wr_set &s);
     void load_ordered_points(YAML::Node n, std::vector<uint32_t> &s);
@@ -110,8 +112,15 @@ class iftb::config {
     bool allgids() { return false; }
     bool printConfig() { return true; }
     bool noCatch() { return true; }
-    uint32_t mini_targ() { return target_chunk_size / 2; }
+    uint32_t mini_targ() { return target_chunk_size / 3; }
  private:
+    struct point_group_info {
+        point_group_info() {}
+        std::string name;
+        std::vector<std::string> preloads;
+        bool is_ordered = false;
+        uint16_t index = 0;
+    };
     struct vec_wrapper : iftb::group_wrapper {
         vec_wrapper(std::vector<uint32_t> &v) : v(v) {
             i = v.begin();
@@ -142,8 +151,10 @@ class iftb::config {
         for (auto &i: point_groups)
             pg.emplace_back(std::make_unique<set_wrapper>(i));
     }
+    void loadPointGroup(YAML::Node n, bool is_ordered);
     uint8_t _verbosity = 0;
     iftb::wr_set base_points, used_points;
+    std::vector<point_group_info> group_info;
     std::vector<std::vector<uint32_t>> ordered_point_groups;
     std::vector<iftb::wr_set> point_groups;
     uint32_t feat_subset_cutoff = 0xFFFF;

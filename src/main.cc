@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #include "argparse.hpp"
+#include "woff2/encode.h"
 
 #include "sanitize.h"
 #include "config.h"
@@ -36,6 +37,61 @@ std::string loadPathAsString(std::filesystem::path &fpath,
         throw std::runtime_error("Error: Unrecognized file/chunk type");
 
     return s;
+}
+
+void addChunks(iftb::client &cl, std::vector<uint16_t> &chunks,
+               bool useRangeFile = false) {
+    std::string cs;
+    if (useRangeFile) {
+        std::filesystem::path rpath = cl.getRangeFileURI();
+        std::ifstream rs(rpath, std::ios::binary);
+        for (auto cidx: chunks) {
+            if (cidx >= cl.getChunkCount()) {
+                std::cerr << cidx << " is greater than Chunk Count ";
+                std::cerr << cl.getChunkCount() << std::endl;
+                continue;
+            }
+            auto [cstart, cend] = cl.getChunkRange(cidx);
+            uint32_t clen = cend - cstart;
+            cs.resize(clen);
+            rs.seekg(cstart);
+            rs.read(cs.data(), clen);
+            if (!cl.addChunk(cidx, cs, true)) {
+                std::cerr << "Problem merging chunk " << cidx;
+                std::cerr << ", stopping." << std::endl;
+                std::exit(1);
+            }
+        }
+    } else {
+        for (auto cidx: chunks) {
+            if (cidx >= cl.getChunkCount()) {
+                std::cerr << cidx << " is greater than Chunk Count ";
+                std::cerr << cl.getChunkCount() << std::endl;
+                continue;
+            }
+            std::filesystem::path cp = cl.getChunkURI(cidx);
+            cs = loadPathAsString(cp, false);
+            if (!cl.addChunk(cidx, cs, true)) {
+                std::cerr << "Problem merging chunk " << cidx;
+                std::cerr << ", stopping." << std::endl;
+                std::exit(1);
+            }
+        }
+    }
+}
+
+void convertToWOFF2(std::string &s) {
+    size_t woff2_size = woff2::MaxWOFF2CompressedSize((uint8_t *)s.data(),
+                                                      s.size());
+    std::string woff2_out(woff2_size, 0);
+    woff2::WOFF2Params params;
+    params.preserve_table_order = true;
+    if (!woff2::ConvertTTFToWOFF2((uint8_t *)s.data(), s.size(),
+                                  (uint8_t *)woff2_out.data(),
+                                  &woff2_size, params))
+        throw std::runtime_error("Could not WOFF2 compress font");
+    woff2_out.resize(woff2_size);
+    s.swap(woff2_out);
 }
 
 int dispatch(argparse::ArgumentParser &program, iftb::config &conf) {
@@ -130,55 +186,89 @@ int dispatch(argparse::ArgumentParser &program, iftb::config &conf) {
 
         std::filesystem::path ocwd = std::filesystem::current_path();
         std::filesystem::current_path(fpath.parent_path());
-        std::string cs;
-        if (merge["-r"] == true) {
-            std::filesystem::path rpath = cl.getRangeFileURI();
-            std::ifstream rs(rpath, std::ios::binary);
-            for (auto cidx: chunks) {
-                if (cidx >= cl.getChunkCount()) {
-                    std::cerr << cidx << " is greater than Chunk Count ";
-                    std::cerr << cl.getChunkCount() << std::endl;
-                    continue;
-                }
-                auto [cstart, cend] = cl.getChunkRange(cidx);
-                uint32_t clen = cend - cstart;
-                cs.resize(clen);
-                rs.seekg(cstart);
-                rs.read(cs.data(), clen);
-                if (!cl.addChunk(cidx, cs, true)) {
-                    std::cerr << "Problem merging chunk " << cidx;
-                    std::cerr << ", stopping." << std::endl;
-                    std::exit(1);
-                }
-            }
-        } else {
-            for (auto cidx: chunks) {
-                if (cidx >= cl.getChunkCount()) {
-                    std::cerr << cidx << " is greater than Chunk Count ";
-                    std::cerr << cl.getChunkCount() << std::endl;
-                    continue;
-                }
-                std::filesystem::path cp = cl.getChunkURI(cidx);
-                cs = loadPathAsString(cp, false);
-                if (!cl.addChunk(cidx, cs, true)) {
-                    std::cerr << "Problem merging chunk " << cidx;
-                    std::cerr << ", stopping." << std::endl;
-                    std::exit(1);
-                }
-            }
-        }
+
+        addChunks(cl, chunks, merge["-r"] == true);
+
         if (!cl.canMerge()) {
             std::cerr << "Client reports it can't merge, stopping";
             std::cerr << std::endl;
             std::exit(1);
         }
-        if (!cl.merge(merge["-s"] == true)) {
+        if (!cl.merge(merge["-l"] == false)) {
             std::cerr << "Problem merging, stopping" << std::endl;
             std::exit(1);
         }
         std::filesystem::current_path(ocwd);
         std::string &nfs = cl.getFontAsString();
+        if (merge["-w"] == true)
+            convertToWOFF2(nfs);
         std::filesystem::path opath = merge.get<std::string>("-o");
+        std::ofstream os;
+        os.open(opath, std::ios::out | std::ios::binary);
+        os.write(nfs.data(), nfs.size());
+        os.close();
+        std::cerr << "Wrote output file " << opath << std::endl;
+        r = 0;
+    } else if (program.is_subcommand_used("preload")) {
+        auto preload = program.at<argparse::ArgumentParser>("preload");
+        std::filesystem::path fpath = preload.get<std::string>("base_file");
+        std::string confTag = preload.get<std::string>("tag");
+        std::string fs = loadPathAsString(fpath);
+
+        conf.load(program.get<std::string>("-c"), !program.is_used("-c"));
+
+        std::set<uint32_t> unicodes;
+        if (!conf.unicodesForPreload(confTag, unicodes)) {
+            std::cerr << "No preloads for tag '" << confTag;
+            std::cerr << "', stopping" << std::endl;
+            std::exit(1);
+        }
+        std::vector<uint32_t> unilist, features;
+        unilist.reserve(unicodes.size());
+        for (auto cp: unicodes)
+            unilist.push_back(cp);
+
+        iftb::client cl;
+        if (!cl.loadFont(fs))
+            std::exit(1);
+
+        cl.setPending(unilist, features);
+        std::vector<uint16_t> chunks;
+        cl.getPendingChunkList(chunks);
+
+        std::filesystem::path ocwd = std::filesystem::current_path();
+        std::filesystem::current_path(fpath.parent_path());
+
+        addChunks(cl, chunks, preload["-r"] == true);
+
+        if (!cl.canMerge()) {
+            std::cerr << "Client reports it can't merge, stopping";
+            std::cerr << std::endl;
+            std::exit(1);
+        }
+        if (!cl.merge(preload["-l"] == false)) {
+            std::cerr << "Problem merging, stopping" << std::endl;
+            std::exit(1);
+        }
+        std::filesystem::current_path(ocwd);
+
+        std::string &nfs = cl.getFontAsString();
+        if (preload["-w"] == true)
+            convertToWOFF2(nfs);
+
+        std::filesystem::path opath;
+        if (auto oname = preload.present("-o")) {
+            opath = *oname;
+        } else {
+            opath = fpath;
+            std::filesystem::path ofname = opath.stem();
+            ofname += confTag;
+            if (preload["-w"] == true)
+                ofname.replace_extension("woff2");
+            else
+                ofname.replace_extension(cl.isCFF() ? "otf" : "ttf");
+            opath.replace_filename(ofname);
+        }
         std::ofstream os;
         os.open(opath, std::ios::out | std::ios::binary);
         os.write(nfs.data(), nfs.size());
@@ -271,8 +361,33 @@ int main(int argc, char **argv) {
          .help("Retrieve the chunk from the range file")
          .default_value(false)
          .implicit_value(true);
-    merge.add_argument("-s", "--for-caching")
-         .help("Set the sfnt version to IFTB (instead of the OpenType version)")
+    merge.add_argument("-l", "--for-loading")
+         .help("Set the sfnt version to OpenType/TrueType (instead of IFTB)")
+         .default_value(false)
+         .implicit_value(true);
+    merge.add_argument("-w", "--woff2")
+         .help("Output WOFF2")
+         .default_value(false)
+         .implicit_value(true);
+
+    argparse::ArgumentParser preload("preload");
+    preload.add_description("Preload the file by config tag");
+    preload.add_argument("base_file")
+         .help("The IFTB (binned) input file");
+    preload.add_argument("tag")
+         .help("The config tag to preload");
+    preload.add_argument("-o", "--output-filename")
+         .help("filename for preloaded file");
+    preload.add_argument("-r", "--by-range")
+         .help("Retrieve the chunk from the range file")
+         .default_value(false)
+         .implicit_value(true);
+    preload.add_argument("-l", "--for-loading")
+         .help("Set the sfnt version to OpenType/TrueType (instead of IFTB)")
+         .default_value(false)
+         .implicit_value(true);
+    preload.add_argument("-w", "--woff2")
+         .help("Output WOFF2")
          .default_value(false)
          .implicit_value(true);
 
@@ -285,6 +400,7 @@ int main(int argc, char **argv) {
     program.add_subparser(process);
     program.add_subparser(check);
     program.add_subparser(merge);
+    program.add_subparser(preload);
     program.add_subparser(dumpchunks);
     program.add_subparser(stresstest);
 

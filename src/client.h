@@ -5,6 +5,7 @@
 
 #include "sfnt.h"
 #include "table_IFTB.h"
+#include "tag.h"
 #include "merger.h"
 #include "streamhelp.h"
 #include "randtest.h"
@@ -29,6 +30,7 @@ class iftb::client {
                     const std::vector<uint32_t> &features);
     bool getPendingChunkList(std::vector<uint16_t> &cl);
     std::string &getRangeFileURI() { return tiftb.getRangeFileURI(); }
+    uint32_t getChunkOffset(uint16_t cidx);
     std::pair<uint32_t, uint32_t> getChunkRange(uint16_t cidx);
     const char *getChunkURI(uint16_t cidx) { return tiftb.getChunkURI(cidx); }
     bool addChunk(uint16_t idx, std::string &s, bool setPending = false) {
@@ -45,6 +47,9 @@ class iftb::client {
             isIFTB = asIFTB;
         }
         return true;
+    }
+    bool isCFF() {
+        return !sfnt.has(T_GLYF);
     }
     std::string &getFontAsString() { return fontData; }
  private:

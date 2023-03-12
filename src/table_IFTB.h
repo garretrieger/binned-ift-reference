@@ -26,6 +26,7 @@ public:
     friend class iftb::chunker;
     friend bool randtest(std::string &s, uint32_t iterations);
     uint16_t getChunkCount() { return (uint16_t) chunkCount; }
+    uint32_t getChunkOffset(uint16_t cidx);
     std::pair<uint32_t, uint32_t> getChunkRange(uint16_t cidx);
     std::string &getRangeFileURI() { return rangeFileURI; }
     const char * getChunkURI(uint16_t idx);

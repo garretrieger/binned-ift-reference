@@ -7,16 +7,18 @@
 
 void iftb::table_IFTB::writeChunkSet(std::ostream &os, bool seekTo) {
     uint8_t u8 = 0;
+    uint32_t chunkBytes = (chunkCount + 7) / 8;
     if (seekTo)
         os.seekp(50);
     for (int i = 0; i < chunkCount; i++) {
         if (i && i % 8 == 0) {
             writeObject(os, u8);
+            chunkBytes--;
             u8 = 0;
         }
         u8 |= (chunkSet[i] ? 1 : 0) << (i % 8);
     }
-    if (chunkCount % 8 != 0) {
+    if (chunkBytes) {
         writeObject(os, u8);
     }
 }
@@ -67,8 +69,14 @@ bool iftb::table_IFTB::getMissingChunks(const std::vector<uint32_t> &unicodes,
     return true;
 }
 
+uint32_t iftb::table_IFTB::getChunkOffset(uint16_t cidx) {
+    if (cidx < 1 && cidx >= chunkOffsets.size() - 1)
+        return 0;
+    return chunkOffsets[cidx-1];
+}
+
 std::pair<uint32_t, uint32_t> iftb::table_IFTB::getChunkRange(uint16_t cidx) {
-    if (cidx >= chunkOffsets.size() - 1)
+    if (cidx < 1 && cidx >= chunkOffsets.size() - 1)
         return std::pair<uint32_t, uint32_t>(0, 0);
 
     return std::pair<uint32_t, uint32_t>(chunkOffsets[cidx-1],
@@ -180,7 +188,6 @@ bool iftb::table_IFTB::decompile(std::istream &is, uint32_t offset) {
             chunkSet[i * 8 + j] = u8 & (1 << j);
         }
     }
-
     readObject(is, u8);
     filesURI.resize(u8 + 1);
     is.read(filesURI.data(), u8 + 1);

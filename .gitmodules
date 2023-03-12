@@ -1,7 +1,7 @@
 [submodule "woff2"]
 	path = woff2
-	url = https://github.com/google/woff2
-	branch = master
+	url = https://github.com/skef/woff2
+	branch = iftb_changes
 [submodule "harfbuzz"]
 	path = harfbuzz
 	url = https://github.com/skef/harfbuzz
