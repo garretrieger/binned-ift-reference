@@ -222,7 +222,7 @@ void iftb::chunker::process_feature_candidates(uint32_t feat,
 
 int iftb::chunker::process(std::string &input_string) {
     using namespace iftb;
-    uint32_t codepoint, gid, feat, last_gid;
+    uint32_t codepoint, gid, feat, last_gid, secondaryOffset;
     wr_set scratch1, scratch2, remaining_gids, remaining_points;
     int idx;
     unsigned flags;
@@ -398,7 +398,6 @@ int iftb::chunker::process(std::string &input_string) {
             assert(u16 == glyph_count);
             readObject(sis, u16);
             assert(u16 & 0x1);
-            uint32_t secondaryOffset;
             readObject(sis, secondaryOffset);
             readObject(sis, lastioff);
             for (int i = 0; i < glyph_count; i++) {
@@ -995,6 +994,32 @@ int iftb::chunker::process(std::string &input_string) {
                                         HB_MEMORY_MODE_READONLY, NULL, NULL);
         newLocaBlob = hb_blob_create(nloca, (glyph_count + 1) * 4,
                                      HB_MEMORY_MODE_READONLY, NULL, NULL);
+        if (is_variable) {
+            const char *b = hb_blob_get_data(secondaryBlob.b, &l);
+            char *ngvar = (char *) malloc(l);
+            memcpy(ngvar, b, secondaryOffset);
+            ss.rdbuf()->pubsetbuf(ngvar, l);
+            ss.seekp(20);
+            uint32_t ngoff = 0;
+            char *nginsert = ngvar + secondaryOffset;
+            for (uint32_t i = 0; i < glyph_count; i++) {
+                const char *from = NULL;
+                uint32_t froml = 0;
+                if (c0g.has(i)) {
+                    from = secondaryRecs[i].offset;
+                    froml = secondaryRecs[i].length;
+                }
+                if (froml > 0)
+                    memcpy(nginsert, from, froml);
+                writeObject(ss, ngoff);
+                ngoff += froml;
+                nginsert += froml;
+            }
+            writeObject(ss, ngoff);
+            newSecondaryBlob = hb_blob_create(ngvar, nginsert - ngvar,
+                                              HB_MEMORY_MODE_READONLY,
+                                              NULL, NULL);
+        }
     }
 
     tiftb.filesURI = conf.filesURI();

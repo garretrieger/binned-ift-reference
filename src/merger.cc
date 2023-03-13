@@ -228,7 +228,7 @@ bool iftb::merger::merge(iftb::sfnt &sf, char *oldbuf, char *newbuf) {
     }
     if (t1tag) {
         uint32_t dataoff;
-        for (uint32_t i = t1off + t1nlen; i < (has_cff) ? fontend : glyfnoff;
+        for (uint32_t i = t1off + t1nlen; i < ((has_cff) ? fontend : glyfnoff);
              i++)
             *(newbuf + i) = 0;
         if (has_cff) {

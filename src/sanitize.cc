@@ -13,10 +13,8 @@ bool iftb::sanitize(std::string &s, iftb::config &conf) {
     if (!sfnt.read()) {
         return false;
     }
-    if (!sfnt.checkSums(conf.verbosity() > 1)) {
-        std::cerr << "sfnt table checksum error" << std::endl;
-        return false;
-    }
+
+    sfnt.checkSums(conf.verbosity() > 1);
 
     if (!sfnt.getTableStream(ss, T_IFTB)) {
         std::cerr << "Error: No IFTB table in font file" << std::endl;

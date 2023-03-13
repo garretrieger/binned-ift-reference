@@ -16,7 +16,7 @@ constexpr uint32_t tag(const char *s) {
 #define T_CFF2 tag("CFF2")
 #define T_GLYF tag("glyf")
 #define T_LOCA tag("loca")
-#define T_GVAR tag("GVAR")
+#define T_GVAR tag("gvar")
 #define T_CMAP tag("cmap")
 #define T_IFTB tag("IFTB")
 #define T_HEAD tag("head")
