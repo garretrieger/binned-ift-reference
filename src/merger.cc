@@ -149,6 +149,7 @@ uint32_t iftb::merger::calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso) {
         has_cff = true;
     } else if ((t1off = sf.getTableOffset(t1tag = T_CFF2,
                                           t1clen)) != 0) {
+        is_cff2 = true;
         has_cff = true;
     } else if ((t1off = sf.getTableOffset(t1tag = T_GVAR,
                                           t1clen)) != 0) {
@@ -171,7 +172,7 @@ uint32_t iftb::merger::calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso) {
     if (t1tag) {
         sf.getTableStream(ss, t1tag);
         if (has_cff) {
-            ss.seekg(charStringOff + 3);
+            ss.seekg(charStringOff + (is_cff2 ? 5 : 3));
         } else {  // gvar
             ss.seekg(16);
             readObject(ss, gvarDataOff);
@@ -199,10 +200,10 @@ uint32_t iftb::merger::calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso) {
 }
 
 bool iftb::merger::merge(iftb::sfnt &sf, char *oldbuf, char *newbuf) {
+    uint32_t cffOffOff = charStringOff + (is_cff2 ? 5 : 3);
     if (oldbuf != newbuf) {
         if (has_cff)
-            memcpy(newbuf, oldbuf, t1off + charStringOff + 3 +
-                   (glyphCount + 1) * 4);
+            memcpy(newbuf, oldbuf, t1off + cffOffOff + (glyphCount + 1) * 4);
         else if (t1tag)  // gvar
             memcpy(newbuf, oldbuf, t1off + 20 + (glyphCount + 1) * 4);
         else
@@ -231,9 +232,9 @@ bool iftb::merger::merge(iftb::sfnt &sf, char *oldbuf, char *newbuf) {
              i++)
             *(newbuf + i) = 0;
         if (has_cff) {
-            ss.rdbuf()->pubsetbuf(newbuf + t1off + charStringOff + 3,
+            ss.rdbuf()->pubsetbuf(newbuf + t1off + cffOffOff,
                                   (glyphCount + 1) * 4);
-            dataoff = t1off + charStringOff + 3 + (glyphCount + 1) * 4 - 1;
+            dataoff = t1off + cffOffOff + (glyphCount + 1) * 4 - 1;
         } else {  // gvar
             ss.rdbuf()->pubsetbuf(newbuf + t1off + 20, (glyphCount + 1) * 4);
             dataoff = t1off + gvarDataOff;

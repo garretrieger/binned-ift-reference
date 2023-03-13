@@ -337,12 +337,17 @@ int iftb::chunker::process(std::string &input_string) {
         const char *b = hb_blob_get_data(primaryBlob.b, &l);
         sis.rdbuf()->pubsetbuf((char *) b, l);
         sis.seekg(cff_charstrings_offset);
-        uint16_t icount = readObject<uint16_t>(sis);
+        uint32_t icount;
+        if (is_variable)
+           icount = readObject<uint32_t>(sis);
+        else
+           icount = (uint32_t) readObject<uint16_t>(sis);
         assert(icount == glyph_count);
         uint8_t ioffsize = readObject<uint8_t>(sis);
         assert(ioffsize == 4);
         uint32_t lastioff = readObject<uint32_t>(sis), ioff;
-        const char *bbase = b + cff_charstrings_offset + 3 +
+        const char *bbase = b + cff_charstrings_offset +
+                            (is_variable ? 5 : 3) +
                             (glyph_count + 1) * 4 - 1;
         for (int i = 0; i < glyph_count; i++) {
             readObject(sis, ioff);
@@ -432,6 +437,18 @@ int iftb::chunker::process(std::string &input_string) {
         std::cerr << "Unicodes defined in cmap: " << unicodes_face.size();
         std::cerr << std::endl;
     }
+
+    /*
+    {
+        hb_blob_t *blb = hb_face_reference_blob(subface.f);
+        unsigned int sss;
+        const char *ddd = hb_blob_get_data(blb, &sss);
+        std::ofstream foob;
+        foob.open("foobar.otf", std::ios::trunc | std::ios::binary);
+        foob.write(ddd, sss);
+        foob.close();
+    }
+    */
 
     proface.create_preprocessed(subface);
 
@@ -927,12 +944,13 @@ int iftb::chunker::process(std::string &input_string) {
         unsigned int l;
         const char *b = hb_blob_get_data(primaryBlob.b, &l);
         char *nb = (char *) malloc(l);
-        memcpy(nb, b, cff_charstrings_offset + 3);
+        uint32_t offsets_offset = cff_charstrings_offset +
+                                  (is_variable ? 5 : 3);
+        memcpy(nb, b, offsets_offset);
         ss.rdbuf()->pubsetbuf(nb, l);
-        ss.seekp(cff_charstrings_offset + 3);
+        ss.seekp(offsets_offset);
         uint32_t nboff = 1;
-        char *nbinsert = nb + cff_charstrings_offset + 3 +
-                         (glyph_count + 1) * 4;
+        char *nbinsert = nb + offsets_offset + (glyph_count + 1) * 4;
         for (uint32_t i = 0; i < glyph_count; i++) {
             const char *from = NULL;
             uint32_t froml = 0;
@@ -1013,8 +1031,20 @@ int iftb::chunker::process(std::string &input_string) {
         if (tbl == T_CMAP || tbl == T_CFF || tbl == T_CFF2 ||
             tbl == T_GLYF || tbl == T_LOCA || tbl == T_GVAR)
             continue;
-        hb_face_builder_add_table(fbldr, tbl,
-                                  hb_face_reference_table(subface.f, tbl));
+        hb_blob_t *b = hb_face_reference_table(subface.f, tbl);
+        if (b == hb_blob_get_empty()) {
+            if (tbl == tag("BASE")) {
+                std::cerr << "Warning: Getting BASE table from original font";
+                std::cerr << std::endl;
+                b = hb_face_reference_table(inface.f, tbl);
+                assert(b != hb_blob_get_empty());
+            } else {
+                std::cerr << "Warning: No data for table " << otag(tbl);
+                std::cerr << std::endl;
+                continue;
+            }
+        }
+        hb_face_builder_add_table(fbldr, tbl, b);
         tagOrder.push_back(tbl);
     }
 

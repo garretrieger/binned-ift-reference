@@ -43,7 +43,7 @@ public:
         glyphMap1.clear();
         glyphMap2.clear();
         chunkData.clear();
-        has_cff = false;
+        has_cff = is_cff2 = false;
         glyphCount = charStringOff = gvarDataOff = 0;
         t1tag = t1off = t1clen = t1nlen = 0;
         glyfcoff = glyfnoff = glyfclen = glyfnlen = 0;
@@ -77,7 +77,7 @@ private:
     simplestream ss;
 
     // These bridge between calcLayout() and merge()
-    bool has_cff {false}; 
+    bool has_cff {false}, is_cff2 {false};
     uint32_t glyphCount {0}, charStringOff {0}, gvarDataOff {0};
     uint32_t t1tag {0}, t1off {0}, t1clen {0}, t1nlen {0};
     uint32_t glyfcoff {0}, glyfnoff {0}, glyfclen {0}, glyfnlen {0};
