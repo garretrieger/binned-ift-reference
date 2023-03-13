@@ -62,7 +62,7 @@ bool iftb::readcmap(std::istream &is,
         for (uint32_t i = 0; i < segCount; i++) {
             readObject(is, segs[i].idRangeOffset);
         }
-        uint16_t idx = -1;
+        int32_t idx = -1;
         for (auto &s: segs) {
             idx++;
             if (s.startCode > s.endCode) {
@@ -73,12 +73,12 @@ bool iftb::readcmap(std::istream &is,
             for (uint32_t c = s.startCode; c <= s.endCode; c++) {
                 uint16_t gid;
                 if (s.idRangeOffset != 0) {
-                    uint32_t t = s.idRangeOffset/2 + (c - s.startCode);
+                    uint32_t t = s.idRangeOffset + 2 * (c - s.startCode);
                     t += firstidroOff + 2 * idx;
                     is.seekg(t);
                     readObject(is, gid);
                 } else
-                    gid = s.idDelta + (c - s.startCode);
+                    gid = c + s.idDelta;
                 if (gidMap && gid >= gidMap->size()) {
                     std::cerr << "cmap format 4 bad gid value";
                     std::cerr << std::endl;
