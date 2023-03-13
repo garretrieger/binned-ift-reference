@@ -6,8 +6,8 @@
 #include "client.h"
 #include "wrappers.h"
 
-static bool randbool() {
-    static auto gen = std::bind(std::uniform_int_distribution<>(0, 1),
+static uint16_t randtt() {
+    static auto gen = std::bind(std::uniform_int_distribution<>(0, 9999),
                                 std::default_random_engine());
     return gen();
 }
@@ -75,7 +75,7 @@ bool iftb::randtest(std::string &input_string, uint32_t iterations) {
         some_codepoints.clear();
         u32 = HB_SET_VALUE_INVALID;
         while (all_codepoints.next(u32))
-            if (randbool() && randbool() && randbool() && randbool() && randbool() && randbool() && randbool() && randbool()) {
+            if (randtt() > 9990)
                 hb_set_add(t, u32);
                 some_codepoints.push_back(u32);
             }
@@ -84,7 +84,7 @@ bool iftb::randtest(std::string &input_string, uint32_t iterations) {
         some_features.clear();
         u32 = HB_SET_VALUE_INVALID;
         while (all_features.next(u32))
-            if (randbool()) {
+            if (randtt() > 4999) {
                 hb_set_add(t, u32);
                 some_features.push_back(u32);
             }

@@ -280,6 +280,11 @@ int dispatch(argparse::ArgumentParser &program, iftb::config &conf) {
         std::filesystem::path fpath = stresstest.get<std::string>("base_file");
         std::string fs = loadPathAsString(fpath);
 
+        fs[0] = 'O';
+        fs[1] = 'T';
+        fs[2] = 'T';
+        fs[3] = 'O';
+
         if (iftb::randtest(fs)) {
             std::cerr << "File passed stress tests" << std::endl;
             r = 0;
