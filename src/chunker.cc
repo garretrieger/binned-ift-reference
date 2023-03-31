@@ -226,7 +226,7 @@ int iftb::chunker::process(std::string &input_string) {
     wr_set scratch1, scratch2, remaining_gids, remaining_points;
     int idx;
     unsigned flags;
-    bool printed;
+    bool printed, has_BASE;
     hb_set_t *t;
     hb_subset_plan_t *plan;
     hb_map_t *map, *gid_chunk_map;
@@ -282,6 +282,11 @@ int iftb::chunker::process(std::string &input_string) {
     if (conf.verbosity() > 1)
         std::cerr << "Initial glyph count: " << glyph_count << std::endl;
 
+    if (tables.has(tag("SVG ")))
+        std::cerr << "Warning: SVG table will be dropped" << std::endl;
+
+    has_BASE = tables.has(tag("BASE"));
+
     // Initial subset clears out unused data and implements table
     // requirements.  We don't retain GIDs here
     flags = HB_SUBSET_FLAGS_DEFAULT;
@@ -290,6 +295,8 @@ int iftb::chunker::process(std::string &input_string) {
              | HB_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
              | HB_SUBSET_FLAGS_IFTB_REQUIREMENTS
              ;
+    if (has_BASE)
+        flags |= HB_SUBSET_FLAGS_RETAIN_GIDS;
     if (conf.desubroutinize())
         flags |= HB_SUBSET_FLAGS_DESUBROUTINIZE;
     if (conf.namelegacy())
@@ -1051,23 +1058,21 @@ int iftb::chunker::process(std::string &input_string) {
 
     uint32_t tbl = HB_SET_VALUE_INVALID;
     while (tables.next(tbl)) {
+        hb_blob_t *b;
         if (tbl == tag("FFTM") || tbl == tag("DSIG"))
            continue;
         if (tbl == T_CMAP || tbl == T_CFF || tbl == T_CFF2 ||
             tbl == T_GLYF || tbl == T_LOCA || tbl == T_GVAR)
             continue;
-        hb_blob_t *b = hb_face_reference_table(subface.f, tbl);
+        if (tbl == tag("BASE")) {
+            b = hb_face_reference_table(inface.f, tbl);
+        } else {
+            b = hb_face_reference_table(subface.f, tbl);
+        }
         if (b == hb_blob_get_empty()) {
-            if (tbl == tag("BASE")) {
-                std::cerr << "Warning: Getting BASE table from original font";
-                std::cerr << std::endl;
-                b = hb_face_reference_table(inface.f, tbl);
-                assert(b != hb_blob_get_empty());
-            } else {
-                std::cerr << "Warning: No data for table " << otag(tbl);
-                std::cerr << std::endl;
-                continue;
-            }
+            std::cerr << "Warning: No data for table " << otag(tbl);
+            std::cerr << std::endl;
+            continue;
         }
         hb_face_builder_add_table(fbldr, tbl, b);
         tagOrder.push_back(tbl);

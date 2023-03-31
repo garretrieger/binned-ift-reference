@@ -106,6 +106,11 @@ int dispatch(argparse::ArgumentParser &program, iftb::config &conf) {
             std::cerr << "Error: File failed sanitization" << std::endl;
         else
             std::cerr << "File passed sanitization" << std::endl;
+    } else if (program.is_subcommand_used("info")) {
+        auto info = program.at<argparse::ArgumentParser>("info");
+        std::filesystem::path fpath = info.get<std::string>("base_file");
+        std::string fs = loadPathAsString(fpath);
+        iftb::info(fs, conf);
     } else if (program.is_subcommand_used("process")) {
         auto process = program.at<argparse::ArgumentParser>("process");
         std::filesystem::path fpath = process.get<std::string>("font_file");
@@ -336,6 +341,11 @@ int main(int argc, char **argv) {
     check.add_argument("base_file")
          .help("The IFTB (binned) input file");
 
+    argparse::ArgumentParser info("info");
+    info.add_description("Show information about a processed font file");
+    info.add_argument("base_file")
+        .help("The IFTB (binned) input file");
+
     argparse::ArgumentParser dumpchunks("dump-chunks");
     dumpchunks.add_description("Show the fields in a set of chunks, by index");
     dumpchunks.add_argument("base_file")
@@ -404,6 +414,7 @@ int main(int argc, char **argv) {
 
     program.add_subparser(process);
     program.add_subparser(check);
+    program.add_subparser(info);
     program.add_subparser(merge);
     program.add_subparser(preload);
     program.add_subparser(dumpchunks);

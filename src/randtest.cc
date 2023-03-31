@@ -75,7 +75,7 @@ bool iftb::randtest(std::string &input_string, uint32_t iterations) {
         some_codepoints.clear();
         u32 = HB_SET_VALUE_INVALID;
         while (all_codepoints.next(u32))
-            if (randtt() > 9990)
+            if (randtt() > 9990) {
                 hb_set_add(t, u32);
                 some_codepoints.push_back(u32);
             }

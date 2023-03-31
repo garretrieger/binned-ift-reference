@@ -6,4 +6,5 @@
 
 namespace iftb {
     bool sanitize(std::string &s, iftb::config &conf);
+    void info(std::string &s, iftb::config &conf);
 }

@@ -252,7 +252,7 @@ void iftb::table_IFTB::dump(std::ostream &os, bool full) {
         os << "gidMap: ";
         bool printed = false;
         for (uint32_t i = 0; i < gidMap.size(); i++) {
-            if (!printed)
+            if (printed)
                 os << ", ";
             printed = true;
             os << i << ":" << gidMap[i];
@@ -263,10 +263,21 @@ void iftb::table_IFTB::dump(std::ostream &os, bool full) {
         os << "chunkOffsets: ";
         bool printed = false;
         for (uint32_t i = 0; i < chunkOffsets.size(); i++) {
-            if (!printed)
+            if (printed)
                 os << ", ";
             printed = true;
             os << i << ":" << chunkOffsets[i];
+        }
+        os << std::endl;
+    }
+    if (featureMap.size() > 0) {
+        os << "Separately mapped features: ";
+        bool printed = false;
+        for (auto &[t, fm]: featureMap) {
+            if (printed)
+                os << ", ";
+            printed = true;
+            os << otag(t);
         }
         os << std::endl;
     }

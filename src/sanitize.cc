@@ -26,12 +26,6 @@ bool iftb::sanitize(std::string &s, iftb::config &conf) {
     if (!tiftb.decompile(ss))
         return false;
 
-    if (conf.verbosity() > 2)
-        sfnt.dump(std::cerr);
-
-    if (conf.verbosity())
-        tiftb.dump(std::cerr);
-
     bool is_cff = false, is_variable = false;
     // Determine font type
     if (sfnt.has(T_CFF)) {
@@ -71,4 +65,28 @@ bool iftb::sanitize(std::string &s, iftb::config &conf) {
     }
 
     return true;
+}
+
+void iftb::info(std::string &s, iftb::config &conf) {
+    iftb::sfnt sfnt(s);
+    simplestream ss;
+
+    if (!sfnt.read()) {
+        return;
+    }
+
+    if (!sfnt.getTableStream(ss, T_IFTB)) {
+        std::cerr << "Error: No IFTB table in font file" << std::endl;
+        return;
+    }
+
+    table_IFTB tiftb;
+    
+    if (!tiftb.decompile(ss))
+        return;
+
+    if (conf.verbosity() > 2)
+        sfnt.dump(std::cerr);
+
+    tiftb.dump(std::cerr, conf.verbosity() > 1);
 }
