@@ -112,7 +112,7 @@ class iftb::config {
     bool allgids() { return false; }
     bool printConfig() { return true; }
     bool noCatch() { return true; }
-    uint32_t mini_targ() { return target_chunk_size / 3; }
+    uint32_t mini_targ() { return target_chunk_size / 4; }
  private:
     struct point_group_info {
         point_group_info() {}

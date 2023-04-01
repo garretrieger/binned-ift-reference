@@ -124,10 +124,15 @@ void iftb::chunker::process_overlaps(uint32_t gid, uint32_t chid,
         for (auto it: v) {
             nid = it;
             auto &chv = current_chunk(nid);
+            if (chv.group != ch.group) {
+                move = true;
+                break;
+            }
             if (nid != chid)
                 size += chv.size;
         }
-        move = (size > 2 * conf.target_chunk_size);
+        if (!move)
+            move = (size > (conf.target_chunk_size / 2));
     }
 
     if (move) {
