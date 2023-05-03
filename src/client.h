@@ -36,6 +36,7 @@ class iftb::client {
     bool addChunk(uint16_t idx, std::string &s, bool setPending = false) {
         return addChunk(idx, s.data(), s.size(), setPending);
     }
+    bool hasChunk(uint16_t idx) { return tiftb.hasChunk(idx); }
     bool addChunk(uint16_t idx, char *buf, uint32_t length,
                   bool setPending = false);
     bool canMerge();

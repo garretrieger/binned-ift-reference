@@ -36,6 +36,14 @@ public:
             gidMap.clear();
         return r;
     }
+    bool hasChunk(uint16_t cidx) {
+        if (cidx >= chunkCount)
+           return false;
+        else if (cidx == 0)
+            return true;
+        else
+            return chunkSet[cidx];
+    }
     bool getMissingChunks(const std::vector<uint32_t> &unicodes,
                           const std::vector<uint32_t> &features,
                           std::set<uint16_t> &cl);

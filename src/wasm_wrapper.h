@@ -15,9 +15,13 @@ class iftb::wasm_wrapper {
  public:
     wasm_wrapper() {}
     char *allocateBuffer(uint16_t cidx, uint32_t length) {
-        if (cidx != 0 && cidx >= getChunkCount()) {
-            error("Chunk index too high");
-            return NULL;
+        if (cidx != 0) {
+            if (cidx >= getChunkCount()) {
+                error("Chunk index too high");
+                return NULL;
+            } else if (cl.hasChunk(cidx)) {
+                return (char *) 1;
+            }
         }
         auto i = buffers.emplace(cidx, "");
         i.first->second.resize(length);
