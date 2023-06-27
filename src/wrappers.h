@@ -1,3 +1,18 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* These are some rather clumsy wrappers around C-level harfbuzz objects,
+   which are themselves wrappers around internal C++ harfbuzz objects but
+   the latter aren't exposed through a standard API. These are only used in
+   the encoder.
+ */
+
 #include <vector>
 
 #include <hb-subset.h>

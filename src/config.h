@@ -1,3 +1,16 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* Contains code to parse and store an iftb encoder configuratioh file.
+   It is only included in the encoder.
+ */
+ 
 #include <vector>
 #include <filesystem>
 

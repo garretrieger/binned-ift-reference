@@ -1,3 +1,11 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
 
 #include <cstring>
 #include <cstdlib>
@@ -14,8 +22,11 @@
 #include "streamhelp.h"
 #include "table_IFTB.h"
 
-// Default features from
-// https://github.com/w3c/IFT/blob/main/feature-registry.csv
+/* Default features from
+   https://github.com/w3c/IFT/blob/main/feature-registry.csv
+   XXX This needs to be reduced to features that are enabled by default,
+   with the rest of the features handled some other way.
+ */
 std::unordered_set<uint32_t> iftb::default_features = {
     tag("abvf"), tag("abvm"), tag("abvs"), tag("akhn"), tag("blwf"),
     tag("blwm"), tag("blws"), tag("calt"), tag("ccmp"), tag("cfar"),

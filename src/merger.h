@@ -1,3 +1,17 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* iftb::merger contains the code to merge chunk data into an IFTB encoded
+   font and update the IFTB table accordingly. It is also included in the
+   encoder for, e.g., preloading.
+ */
+
 #include <iostream>
 #include <filesystem>
 #include <cassert>

@@ -1,3 +1,18 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* The iftb::table_IFTB object has code to read, store, interact with,
+   and (to a limited extent) update the contents of the IFTB table in
+   an IFTB-encoded font. (Only the chunk set can be updated.)  This code
+   is included in both the encoder and the client side.
+ */
+
 #include <map>
 #include <array>
 #include <string>

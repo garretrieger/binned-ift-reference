@@ -1,3 +1,15 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* This is the encoder implementation, which not used on the client-side.
+ */
+
 #include <unordered_map>
 #include <filesystem>
 
@@ -17,6 +29,7 @@ namespace iftb {
 class iftb::chunker {
  public:
     chunker(iftb::config &c) : conf(c) {}
+    // Builds the IFTB-encoded files from the font in input_string
     int process(std::string &input_string);
     ~chunker() {
         if (nominal_map)

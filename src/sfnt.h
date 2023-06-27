@@ -1,8 +1,16 @@
-/* Copyright 2014 Adobe Systems Incorporated (http://www.adobe.com/). All Rights Reserved.
-   This software is licensed as OpenSource, under the Apache License, Version 2.0.
-   This license is available at: http://opensource.org/licenses/Apache-2.0. */
+/*
+Copyright 2022-2023 Adobe
+All Rights Reserved.
 
-/* sfnt table edit utility. */
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* The iftb::sfnt object contains code to interpret and edit the top-level
+   table-of-tables in an OpenType font. These are included in both the
+   encoder and the client-side.
+ */
 
 #include <cassert>
 #include <sstream>

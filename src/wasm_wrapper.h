@@ -1,3 +1,16 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* The iftb::wasm_wrapper and related functions provide a wasm-mediated
+   interface to an iftb::client object.  This is only included on the
+   client side but will not be included in non-browser clients.
+ */
 
 #include <string>
 #include <vector>

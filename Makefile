@@ -1,3 +1,9 @@
+# Copyright 2023 Adobe
+# All Rights Reserved.
+
+# NOTICE: Adobe permits you to use, modify, and distribute this file in
+# accordance with the terms of the Adobe license agreement accompanying
+# it.
 
 CLIBASES := chunker config main chunk table_IFTB sfnt sanitize merger cmap client randtest
 WASMSRCS := wasm_wrapper.cc client.cc sfnt.cc cmap.cc merger.cc table_IFTB.cc

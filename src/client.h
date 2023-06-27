@@ -1,3 +1,16 @@
+/*
+Copyright 2023 Adobe
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file in
+accordance with the terms of the Adobe license agreement accompanying
+it.
+*/
+
+/* The iftb::client object is the implemetation of the client side of
+   the IFTB system (below the level of WASM). It is also included in the
+   encoder for, e.g., preloading.
+ */
 
 #include <string>
 #include <vector>
