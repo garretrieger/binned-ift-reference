@@ -95,7 +95,8 @@ function update_transfer_bars() {
     let ur_total = 0;
     for (let r of performance.getEntriesByType("resource")) {
         if (r.name.includes("fonts/Noto")
-            && (r.name.endsWith(".ttf") || r.name.endsWith(".otf") || r.name.endsWith(".woff2"))) {
+            && (r.name.endsWith(".ttf") || r.name.endsWith(".otf") || r.name.endsWith(".woff2")
+	       || r.name.endsWith(".br"))) {
             pfe_total += r.transferSize;
         }
         if (r.name.includes("/s/")) {
