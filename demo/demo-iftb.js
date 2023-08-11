@@ -60,12 +60,7 @@ function update_fonts(text, font_id, font_face) {
         cps.add(text.codePointAt(i));
     }
 
-    let cps_array = [];
-    for (let cp of cps) {
-        cps_array.push(cp);
-    }
-
-    return patch_codepoints(font_id, font_face, cps_array);
+    return patch_codepoints(font_id, font_face, cps);
 }
 
 function patch_codepoints(font_id, font_face, cps) {
