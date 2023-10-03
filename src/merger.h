@@ -25,8 +25,8 @@ it.
 namespace iftb {
     class merger;
     void dumpChunk(std::ostream &os, std::istream &is);
-    std::string decodeChunk(char *buf, size_t length);
-    uint32_t decodeBuffer(char *buf, uint32_t length, std::string &s,
+    std::string decodeChunk(const char *buf, size_t length);
+    uint32_t decodeBuffer(const char *buf, uint32_t length, std::string &s,
                           float reserveExtra = 0.0);
 }
 
@@ -97,4 +97,3 @@ private:
     uint32_t glyfcoff {0}, glyfnoff {0}, glyfclen {0}, glyfnlen {0};
     uint32_t locacoff {0}, locanoff {0}, localen {0}, fontend {0};
 };
-

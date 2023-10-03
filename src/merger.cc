@@ -328,11 +328,10 @@ void iftb::dumpChunk(std::ostream &os, std::istream &is) {
     }
 }
  
-std::string iftb::decodeChunk(char *buf, size_t length) {
+std::string iftb::decodeChunk(const char *buf, size_t length) {
     uint32_t l;
 
-    simpleistream sis;
-    sis.rdbuf()->pubsetbuf(buf, length);
+    simpleistream sis(buf, length);
     sis.seekg(28);  // length offset
     readObject(sis, l);
 
@@ -360,7 +359,7 @@ std::string iftb::decodeChunk(char *buf, size_t length) {
    When buf == NULL the string will be treated as the input, which will
    only be changed if it needs to be decoded (decompressed)
  */
-uint32_t iftb::decodeBuffer(char *buf, uint32_t length, std::string &s,
+uint32_t iftb::decodeBuffer(const char *buf, uint32_t length, std::string &s,
                            float reserveExtra) {
     bool is_woff2 = false, is_compressed_chunk = false;
     bool in_string = (buf == NULL);
