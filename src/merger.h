@@ -61,7 +61,7 @@ public:
         glyphCount = charStringOff = gvarDataOff = 0;
         t1tag = t1off = t1clen = t1nlen = 0;
         glyfcoff = glyfnoff = glyfclen = glyfnlen = 0;
-        locacoff = locanoff = localen = fontend = 0;
+        locacoff = locanoff = locaclen = locanlen = fontend = 0;
     }
     void setID(uint32_t i[4]) {
         id[0] = i[0];
@@ -95,5 +95,6 @@ private:
     uint32_t glyphCount {0}, charStringOff {0}, gvarDataOff {0};
     uint32_t t1tag {0}, t1off {0}, t1clen {0}, t1nlen {0};
     uint32_t glyfcoff {0}, glyfnoff {0}, glyfclen {0}, glyfnlen {0};
-    uint32_t locacoff {0}, locanoff {0}, localen {0}, fontend {0};
+    uint32_t locacoff {0}, locanoff {0}, locaclen {0}, locanlen {0};
+    uint32_t fontend {0};
 };

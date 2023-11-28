@@ -21,6 +21,25 @@ it.
 #include "streamhelp.h"
 #include "tag.h"
 
+
+void extendOffsetTable(char* nbase, uint32_t clen, uint32_t nlen) {
+  for (uint32_t i = clen;
+       i < nlen;
+       i += 4) {
+    if (i < 4) {
+      nbase[i] = 0;
+      nbase[i + 1] = 0;
+      nbase[i + 2] = 0;
+      nbase[i + 3] = 0;
+    } else {
+      nbase[i] = nbase[i - 4];
+      nbase[i + 1] = nbase[i - 3];
+      nbase[i + 2] = nbase[i - 2];
+      nbase[i + 3] = nbase[i - 1];
+    }
+  }
+}
+
 bool iftb::merger::unpackChunks() {
     for (auto &i: chunkData) {
         if (!chunkAddRecs(i.first, i.second))
@@ -104,6 +123,12 @@ uint32_t iftb::merger::calcLengthDiff(std::istream &is, uint32_t glyphCount,
         is.seekg(arrayOff + 4 * gid);
         readObject(is, start);
         readObject(is, end);
+        if (!is.good()) {
+          // gid not present yet, treat as len = 0.
+          is.seekg(arrayOff);
+          is.clear();
+          start = end = 0;
+        }
         ldiff += i.second.length - (end - start);
     }
     return ldiff;
@@ -171,7 +196,7 @@ uint32_t iftb::merger::calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso) {
             std::cerr << "Error: No CFF or glyf table to update" << std::endl;
             return false;
         }
-        locacoff = sf.getTableOffset(T_LOCA, localen);
+        locacoff = sf.getTableOffset(T_LOCA, locaclen);
         if (locacoff == 0) {
             std::cerr << "Error: glyf table without loca table" << std::endl;
             return false;
@@ -198,12 +223,13 @@ uint32_t iftb::merger::calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso) {
         ss.seekg(0);
         ldiff = calcLengthDiff(ss, glyphCount, glyphMap1);
         glyfnlen = glyfclen + ldiff;
+        locanlen = (glyphCount + 1) * 4;
         locanoff = ((glyfnoff + glyfnlen + 3) / 4) * 4;
     }
     if (has_cff)
         fontend = ((t1off + t1nlen + 3) / 4) * 4;
     else
-        fontend = ((locanoff + localen + 3) / 4) * 4;
+        fontend = ((locanoff + locanlen + 3) / 4) * 4;
     return fontend;
 }
 
@@ -221,17 +247,21 @@ bool iftb::merger::merge(iftb::sfnt &sf, char *oldbuf, char *newbuf) {
         sf.setBuffer(oldbuf, fontend);
     }
     if (!has_cff) {
-        memmove(newbuf + locanoff, oldbuf + locacoff, localen);
-        ss.rdbuf()->pubsetbuf(newbuf + locanoff, localen);
+        memmove(newbuf + locanoff, oldbuf + locacoff, locaclen);
+        // if loca was resized, fill in the trailing entries which are
+        // needed by copyGlyphData.
+        extendOffsetTable(newbuf + locanoff, locaclen, locanlen);
+
+        ss.rdbuf()->pubsetbuf(newbuf + locanoff, locanlen);
         if (!copyGlyphData(ss, glyphCount, newbuf + glyfnoff,
                            oldbuf + glyfcoff, glyfnlen - glyfclen,
                            glyphMap1, 0))
             return false;
-        for (uint32_t i = locanoff + localen; i < fontend; i++)
+        for (uint32_t i = locanoff + locanlen; i < fontend; i++)
             *(newbuf + i) = 0;
         for (uint32_t i = glyfnoff + glyfnlen; i < locanoff; i++)
             *(newbuf + i) = 0;
-        sf.adjustTable(T_LOCA, locanoff, localen, true);
+        sf.adjustTable(T_LOCA, locanoff, locanlen, true);
         sf.adjustTable(T_GLYF, glyfnoff, glyfnlen, true);
     }
     if (t1tag) {
