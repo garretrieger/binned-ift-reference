@@ -94,7 +94,7 @@ bool iftb::merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
         gr.length = offset - lastOffset;
         if (offset > cdlen)
             return chunkError(idx, "GID offset + length exceeds size");
-        glyphMap1.emplace(i, gr);
+        glyphMap1.emplace(toNewGid(i), gr);
         lastOffset = offset;
     }
     if (tableCount == 2) {
@@ -104,7 +104,7 @@ bool iftb::merger::chunkAddRecs(uint16_t idx, const std::string &cd) {
             gr.length = offset - lastOffset;
             if (offset > cdlen)
                 return chunkError(idx, "GID offset + length exceeds size");
-            glyphMap2.emplace(i, gr);
+            glyphMap2.emplace(toNewGid(i), gr);
             lastOffset = offset;
         }
     }

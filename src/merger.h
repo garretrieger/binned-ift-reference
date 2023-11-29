@@ -50,10 +50,17 @@ public:
         auto i = chunkData.emplace(idx, "");
         return i.first->second;
     }
+    template<typename It>
+    void addOldToNewGidMap(It begin, It end) {
+        for (; begin != end; begin++) {
+            oldToNewGidMap[begin->first] = begin->second;
+        }
+    }
     bool chunkAddRecs(uint16_t idx, const std::string &s);
     bool unpackChunks();
     void reset() {
         table1 = table2 = 0;
+        oldToNewGidMap.clear();
         glyphMap1.clear();
         glyphMap2.clear();
         chunkData.clear();
@@ -81,6 +88,16 @@ public:
     uint32_t calcLayout(iftb::sfnt &sf, uint32_t numg, uint32_t cso);
     bool merge(iftb::sfnt &sf, char *oldbuf, char *newbuf);
 private:
+    uint32_t toNewGid(uint32_t gid) {
+        if (oldToNewGidMap.empty()) {
+            return gid;
+        }
+        auto it = oldToNewGidMap.find(gid);
+        if (it != oldToNewGidMap.end()) {
+            return it->second;
+        }
+        return gid;
+    }
     bool chunkError(uint16_t cidx, const char *m) {
         std::cerr << "Chunk " << cidx << " error: " << m << std::endl;
         return false;
@@ -88,6 +105,7 @@ private:
     uint32_t table1 {0}, table2 {0}, id[4] {0,0,0,0};
     std::map<uint16_t, glyphrec> glyphMap1, glyphMap2;
     std::map<uint16_t, std::string> chunkData;
+    std::map<uint32_t, uint32_t> oldToNewGidMap;
     simplestream ss;
 
     // These bridge between calcLayout() and merge()
