@@ -18,6 +18,7 @@ it.
 
 void iftb::chunk::compile(std::ostream &os, uint16_t idx,
                           uint32_t *id,
+                          hb_set_t* gids,
                           uint32_t table1,
                           std::vector<iftb::merger::glyphrec> &recs1,
                           uint32_t table2,
@@ -35,13 +36,13 @@ void iftb::chunk::compile(std::ostream &os, uint16_t idx,
     writeObject(os, (uint32_t) idx);
     uint32_t bloffset = (uint32_t) os.tellp();
     writeObject(os, (uint32_t) 0);  // length
-    writeObject(os, (uint32_t) gids.size());
+    writeObject(os, (uint32_t) hb_set_get_population(gids));
     writeObject(os, (uint8_t) (twotables ? 2 : 1));
     uint32_t gid = HB_SET_VALUE_INVALID;
-    while (gids.next(gid))
+    while (hb_set_next(gids, &gid))
         writeObject(os, (uint16_t) gid);
     writeObject(os, table1);
-    uint32_t c_offset = sizeof(uint32_t) * gids.size();
+    uint32_t c_offset = sizeof(uint32_t) * hb_set_get_population(gids);
     if (twotables) {
         writeObject(os, table2);
         c_offset *= 2;
@@ -49,24 +50,24 @@ void iftb::chunk::compile(std::ostream &os, uint16_t idx,
     c_offset += sizeof(uint32_t);  // Last offset encodes length
     c_offset += os.tellp();
     gid = HB_SET_VALUE_INVALID;
-    while (gids.next(gid)) {
+    while (hb_set_next(gids, &gid)) {
         writeObject(os, c_offset);
         c_offset += recs1[gid].length;
     }
     if (twotables) {
         gid = HB_SET_VALUE_INVALID;
-        while (gids.next(gid)) {
+        while (hb_set_next(gids, &gid)) {
             writeObject(os, c_offset);
             c_offset += recs2[gid].length;
         }
     }
     writeObject(os, c_offset);
     gid = HB_SET_VALUE_INVALID;
-    while (gids.next(gid))
+    while (hb_set_next(gids, &gid))
         os.write(recs1[gid].offset, recs1[gid].length);
     if (twotables) {
         gid = HB_SET_VALUE_INVALID;
-        while (gids.next(gid))
+        while (hb_set_next(gids, &gid))
             os.write(recs2[gid].offset, recs2[gid].length);
     }
     uint32_t bl = (uint32_t) os.tellp() - offset;

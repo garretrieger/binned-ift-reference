@@ -78,6 +78,17 @@ class iftb::chunk {
                  std::vector<iftb::merger::glyphrec> &recs1,
                  uint32_t table2,
                  std::vector<iftb::merger::glyphrec> &recs2,
+                 uint32_t offset = 0) {
+      return compile(os, idx, id, gids.s, table1, recs1, table2, recs2, offset);
+    }
+
+    static void compile(std::ostream &os, uint16_t idx,
+                 uint32_t *id,
+                 hb_set_t* gids,
+                 uint32_t table1,
+                 std::vector<iftb::merger::glyphrec> &recs1,
+                 uint32_t table2,
+                 std::vector<iftb::merger::glyphrec> &recs2,
                  uint32_t offset = 0);
     static std::string encode(std::stringstream &ss);
  private:
