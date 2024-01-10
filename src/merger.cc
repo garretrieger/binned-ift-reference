@@ -213,7 +213,9 @@ bool iftb::merger::merge(iftb::sfnt &sf, char *oldbuf, char *newbuf) {
         if (has_cff)
             memcpy(newbuf, oldbuf, t1off + cffOffOff + (glyphCount + 1) * 4);
         else if (t1tag)  // gvar
-            memcpy(newbuf, oldbuf, t1off + 20 + (glyphCount + 1) * 4);
+            // Copy everything up to the start of gvar data, which is
+            // assumed to be the last thing in the table.
+            memcpy(newbuf, oldbuf, t1off + gvarDataOff);
         else
             memcpy(newbuf, oldbuf, glyfcoff);
         sf.setBuffer(newbuf, fontend);
